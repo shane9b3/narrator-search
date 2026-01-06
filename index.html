@@ -1237,7 +1237,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.8.8</span>
+            <span class="version-badge">v1.8.9</span>
         </header>
 
         <div class="search-container">
@@ -2889,37 +2889,54 @@
                 }
                 
                 // Extract bio from IMDB profile
-                // IMDB bios are in various places - try multiple patterns
-                const bioPatterns = [
-                    // Mini bio section
-                    /data-testid="bio-content"[^>]*>([^<]{50,})</i,
-                    // Overview section
-                    /"overview"[^>]*>([^<]{50,})</i,
-                    // Bio text in JSON-LD
-                    /"description"\s*:\s*"([^"]{50,})"/i,
-                    // Known for section sometimes has bio-like text
-                    /class="[^"]*bio[^"]*"[^>]*>([^<]{50,})</i,
-                    // Try to find any substantial paragraph that looks like a bio
-                    /<p[^>]*data-testid="[^"]*bio[^"]*"[^>]*>([\s\S]*?)<\/p>/i
-                ];
+                // IMDB modern pages use JSON-LD and various data attributes
+                log(`IMDB: Looking for bio in profile page...`);
                 
-                for (const pattern of bioPatterns) {
-                    const match = profileHtml.match(pattern);
-                    if (match && match[1]) {
-                        let bio = match[1].trim();
-                        // Clean up the bio
-                        bio = bio.replace(/<[^>]*>/g, ' ')  // Remove HTML tags
-                                 .replace(/&amp;/g, '&')
-                                 .replace(/&quot;/g, '"')
-                                 .replace(/&#x27;/g, "'")
-                                 .replace(/&nbsp;/g, ' ')
-                                 .replace(/\s+/g, ' ')
-                                 .trim();
-                        
-                        if (bio.length > 50 && bio.length < 2000) {
-                            result.bio = bio;
-                            log(`IMDB: Found bio (${bio.length} chars)`);
-                            break;
+                // Try JSON-LD first - this is the most reliable on modern IMDB
+                const jsonLdMatch = profileHtml.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/i);
+                if (jsonLdMatch) {
+                    try {
+                        const jsonData = JSON.parse(jsonLdMatch[1]);
+                        if (jsonData.description && jsonData.description.length > 50) {
+                            result.bio = jsonData.description;
+                            log(`IMDB: Found bio from JSON-LD (${result.bio.length} chars)`);
+                        }
+                    } catch (e) {
+                        log(`IMDB: JSON-LD parse failed`);
+                    }
+                }
+                
+                // If no bio from JSON-LD, try other patterns
+                if (!result.bio) {
+                    const bioPatterns = [
+                        // Mini bio section - new IMDB format
+                        /data-testid="mini-bio"[^>]*>([\s\S]*?)<\/div>/i,
+                        /data-testid="bio-content"[^>]*>([\s\S]*?)<\/div>/i,
+                        // Overview/about section
+                        /class="[^"]*(?:bio|about|overview)[^"]*"[^>]*>([\s\S]*?)<\/(?:div|p|span)>/i,
+                        // Any paragraph with substantial text near "bio" or "about"
+                        /(?:bio|about|overview)[^>]*>[\s\S]{0,200}<p[^>]*>([\s\S]*?)<\/p>/i
+                    ];
+                    
+                    for (const pattern of bioPatterns) {
+                        const match = profileHtml.match(pattern);
+                        if (match && match[1]) {
+                            let bio = match[1].trim();
+                            // Clean up the bio
+                            bio = bio.replace(/<[^>]*>/g, ' ')  // Remove HTML tags
+                                     .replace(/&amp;/g, '&')
+                                     .replace(/&quot;/g, '"')
+                                     .replace(/&#x27;/g, "'")
+                                     .replace(/&#39;/g, "'")
+                                     .replace(/&nbsp;/g, ' ')
+                                     .replace(/\s+/g, ' ')
+                                     .trim();
+                            
+                            if (bio.length > 50 && bio.length < 2000) {
+                                result.bio = bio;
+                                log(`IMDB: Found bio via pattern (${bio.length} chars)`);
+                                break;
+                            }
                         }
                     }
                 }
@@ -2928,32 +2945,59 @@
                 if (!result.bio) {
                     try {
                         const bioUrl = `https://www.imdb.com${profilePath}/bio/`;
-                        log(`IMDB: Checking bio page for biography...`);
+                        log(`IMDB: No bio on profile, checking bio page: ${bioUrl}`);
                         const bioHtml = await fetchViaProxy(bioUrl);
+                        log(`IMDB: Bio page fetched, length: ${bioHtml.length}`);
                         
-                        // Look for mini bio section
-                        const miniBioMatch = bioHtml.match(/Mini Bio[^<]*<\/h4>[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/i) ||
-                                            bioHtml.match(/<div[^>]*data-testid="sub-section"[^>]*>[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/i) ||
-                                            bioHtml.match(/<div[^>]*class="[^"]*soda[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+                        // Try JSON-LD on bio page too
+                        const bioJsonMatch = bioHtml.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/i);
+                        if (bioJsonMatch) {
+                            try {
+                                const jsonData = JSON.parse(bioJsonMatch[1]);
+                                if (jsonData.description && jsonData.description.length > 50) {
+                                    result.bio = jsonData.description;
+                                    log(`IMDB: Found bio from bio page JSON-LD (${result.bio.length} chars)`);
+                                }
+                            } catch (e) {}
+                        }
                         
-                        if (miniBioMatch && miniBioMatch[1]) {
-                            let bio = miniBioMatch[1]
-                                .replace(/<[^>]*>/g, ' ')
-                                .replace(/&amp;/g, '&')
-                                .replace(/&quot;/g, '"')
-                                .replace(/&#x27;/g, "'")
-                                .replace(/&nbsp;/g, ' ')
-                                .replace(/\s+/g, ' ')
-                                .trim();
+                        // Look for mini bio section with various patterns
+                        if (!result.bio) {
+                            const bioPagePatterns = [
+                                /Mini Bio[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/i,
+                                /data-testid="sub-section-mini_bio"[\s\S]*?<div[^>]*>([\s\S]*?)<\/div>/i,
+                                /<div[^>]*class="[^"]*ipc-html-content-inner-div[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+                                /class="soda[^"]*"[^>]*>([\s\S]*?)<\/div>/i
+                            ];
                             
-                            if (bio.length > 50) {
-                                result.bio = bio.substring(0, 1500); // Cap at reasonable length
-                                log(`IMDB: Found bio from bio page (${result.bio.length} chars)`);
+                            for (const pattern of bioPagePatterns) {
+                                const match = bioHtml.match(pattern);
+                                if (match && match[1]) {
+                                    let bio = match[1]
+                                        .replace(/<[^>]*>/g, ' ')
+                                        .replace(/&amp;/g, '&')
+                                        .replace(/&quot;/g, '"')
+                                        .replace(/&#x27;/g, "'")
+                                        .replace(/&#39;/g, "'")
+                                        .replace(/&nbsp;/g, ' ')
+                                        .replace(/\s+/g, ' ')
+                                        .trim();
+                                    
+                                    if (bio.length > 50) {
+                                        result.bio = bio.substring(0, 1500);
+                                        log(`IMDB: Found bio from bio page (${result.bio.length} chars)`);
+                                        break;
+                                    }
+                                }
                             }
                         }
                     } catch (e) {
-                        log(`IMDB: Bio page fetch failed: ${e.message}`);
+                        log(`IMDB: Bio page fetch failed: ${e.message}`, 'warning');
                     }
+                }
+                
+                if (!result.bio) {
+                    log(`IMDB: No bio found for this person`);
                 }
 
                 // Skip name verification if we already verified via suggestion API
