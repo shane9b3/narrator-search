@@ -1237,7 +1237,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.8.0</span>
+            <span class="version-badge">v1.8.1</span>
         </header>
 
         <div class="search-container">
@@ -3429,8 +3429,7 @@
                     createSearch('Soundbooth', searchSoundbooth(narratorName), 30000, 'soundbooth'),
                     createSearch('SoundCloud', searchSoundCloud(narratorName), 30000, 'soundcloud')
                 ];
-                            updateSourceStatus('personalsite', r ? 'found' : 'not-found');
-                            return r;
+
                 // Mark skipped sources in fast mode
                 if (fastMode) {
                     ['personalsite', 'voicestoknow', 'soundbooth', 'soundcloud'].forEach(src => {
@@ -3480,9 +3479,13 @@
 
             } catch (error) {
                 log(`Search failed: ${error.message}`, 'error');
-                showError('An error occurred. Please try again.');
+                // Only show error if we didn't get any results via live updates
+                if (liveResults.length === 0) {
+                    showError('An error occurred. Please try again.');
+                }
             } finally {
                 loading.classList.remove('active');
+                document.getElementById('stillSearching').style.display = 'none';
                 searchBtn.disabled = false;
             }
         }
