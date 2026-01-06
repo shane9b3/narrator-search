@@ -91,33 +91,108 @@
             background: rgba(239, 68, 68, 0.3);
         }
 
-        .existing-data-banner {
-            background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(34, 197, 94, 0.05));
-            border: 1px solid rgba(34, 197, 94, 0.3);
-            border-radius: 12px;
-            padding: 1rem 1.5rem;
+        /* Existing Profile Card */
+        .existing-profile-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            overflow: hidden;
             margin-top: 1rem;
+            animation: fadeIn 0.5s ease;
         }
 
-        .existing-banner-content {
+        .existing-profile-header {
             display: flex;
             align-items: center;
-            gap: 1rem;
+            gap: 2rem;
+            padding: 2rem;
+            background: rgba(0, 0, 0, 0.2);
         }
 
-        .existing-badge {
-            background: #22c55e;
-            color: white;
-            padding: 0.25rem 0.75rem;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 600;
+        .existing-profile-image {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            overflow: hidden;
+            flex-shrink: 0;
+            background: rgba(255, 255, 255, 0.05);
         }
 
-        .existing-banner-content p {
-            color: #86efac;
+        .existing-profile-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .no-image-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6b7280;
             font-size: 0.9rem;
+        }
+
+        .existing-profile-info {
+            flex: 1;
+        }
+
+        .database-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: white;
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .existing-profile-info h2 {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #fff;
             margin: 0;
+        }
+
+        .existing-profile-bio {
+            padding: 2rem;
+        }
+
+        .existing-profile-bio h3 {
+            color: #f5a623;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .existing-profile-bio p {
+            color: #ccc;
+            line-height: 1.7;
+            font-size: 0.95rem;
+        }
+
+        .existing-profile-actions {
+            display: flex;
+            gap: 1rem;
+            padding: 1.5rem 2rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        @media (max-width: 600px) {
+            .existing-profile-header {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .existing-profile-actions {
+                flex-direction: column;
+            }
+            
+            .existing-profile-actions button {
+                width: 100%;
+            }
         }
 
         /* Modal Styles */
@@ -1123,7 +1198,7 @@
         <header>
             <h1>🎧 Narrator Lookup</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.5.0</span>
+            <span class="version-badge">v1.5.1</span>
         </header>
 
         <div class="search-container">
@@ -1143,6 +1218,38 @@
 
         <div class="error-message" id="errorMessage"></div>
 
+        <!-- Existing Narrator Profile (shown when found in database) -->
+        <div class="existing-profile-card" id="existingProfileCard" style="display: none;">
+            <div class="existing-profile-header">
+                <div class="existing-profile-image" id="existingProfileImage">
+                    <img src="" alt="" id="existingImage">
+                    <div class="no-image-placeholder" id="existingNoImage" style="display: none;">
+                        <span>No Photo</span>
+                    </div>
+                </div>
+                <div class="existing-profile-info">
+                    <span class="database-badge">✓ In LitLyric Database</span>
+                    <h2 id="existingNarratorName"></h2>
+                </div>
+            </div>
+            
+            <div class="existing-profile-bio">
+                <h3>About</h3>
+                <p id="existingBio"></p>
+                <p id="existingNoBio" style="display: none; color: #6b7280; font-style: italic;">No biography available.</p>
+            </div>
+            
+            <div class="existing-profile-actions">
+                <button class="request-change-btn" onclick="startChangeRequest()">
+                    ✏️ Request Change
+                </button>
+                <button class="report-btn" onclick="showReportModal()">
+                    🚩 Report Issue
+                </button>
+            </div>
+        </div>
+
+        <!-- Search Results Card (shown for new narrators or when editing) -->
         <div class="result-card" id="resultCard">
             <div class="profile-header">
                 <div class="profile-info-header">
@@ -1246,12 +1353,9 @@
                 
                 <!-- Buttons for EXISTING narrators (already in database) -->
                 <div id="existingNarratorButtons" style="display: none; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
-                    <button class="export-btn" id="copyBtn2">Copy JSON</button>
+                    <button class="export-btn" id="copyBtn2" onclick="copyJson()">Copy JSON</button>
                     <button class="request-change-btn" id="requestChangeBtn" onclick="showRequestChangeModal()">
-                        ✏️ Request Change
-                    </button>
-                    <button class="report-btn" id="reportBtn" onclick="showReportModal()">
-                        🚩 Report
+                        📤 Submit Change Request
                     </button>
                 </div>
                 
@@ -1260,31 +1364,17 @@
                     Community database - uploads are shared with all LitLyric users
                 </p>
             </div>
-            
-            <!-- Existing Data Banner -->
-            <div class="existing-data-banner" id="existingDataBanner" style="display: none;">
-                <div class="existing-banner-content">
-                    <span class="existing-badge">✓ In Database</span>
-                    <p>This narrator already exists in the LitLyric database.</p>
-                </div>
-            </div>
         </div>
         
         <!-- Request Change Modal -->
         <div class="modal-overlay" id="requestChangeModal" style="display: none;">
             <div class="modal-content">
-                <h3>✏️ Request Change</h3>
-                <p>Submit updated information for review. An admin will review your changes before they go live.</p>
+                <h3>✏️ Submit Change Request</h3>
+                <p>Your selected image and bio will be submitted for review. An admin will approve the changes before they go live.</p>
                 
                 <div class="modal-form">
-                    <label>What would you like to change?</label>
-                    <div class="checkbox-group">
-                        <label><input type="checkbox" id="changeImage"> Update Image</label>
-                        <label><input type="checkbox" id="changeBio"> Update Biography</label>
-                    </div>
-                    
                     <label>Reason for change (optional):</label>
-                    <textarea id="changeReason" placeholder="e.g., Found a better quality photo, bio has incorrect information..."></textarea>
+                    <textarea id="changeReason" placeholder="e.g., Found a better quality photo, bio has incorrect information, more detailed bio available..."></textarea>
                     
                     <label>Your email (optional, for follow-up):</label>
                     <input type="email" id="changeEmail" placeholder="your@email.com">
@@ -1292,7 +1382,7 @@
                 
                 <div class="modal-buttons">
                     <button class="modal-cancel" onclick="closeRequestChangeModal()">Cancel</button>
-                    <button class="modal-submit" onclick="submitChangeRequest()">Submit Request</button>
+                    <button class="modal-submit" onclick="submitChangeRequest()">Submit for Review</button>
                 </div>
             </div>
         </div>
@@ -2958,25 +3048,44 @@
             return merged;
         }
 
-        async function performSearch() {
+        async function performSearch(skipDatabaseCheck = false) {
             const narratorName = searchInput.value.trim();
             if (!narratorName) {
                 showError('Please enter a narrator name');
                 return;
             }
 
-            // Check fast mode
-            const fastMode = document.getElementById('fastModeToggle')?.checked || false;
-            
             // Reset UI
             debugLog.innerHTML = '';
             loading.classList.add('active');
             resultCard.classList.remove('active');
+            document.getElementById('existingProfileCard').style.display = 'none';
             errorMessage.classList.remove('active');
             suggestions.style.display = 'none';
             searchBtn.disabled = true;
 
-            log(`Starting search for "${narratorName}"${fastMode ? ' (Fast Mode)' : ''}`);
+            log(`Starting search for "${narratorName}"`);
+
+            // Check if narrator exists in database first (unless skipping for change request)
+            if (!skipDatabaseCheck) {
+                log('Checking LitLyric database...', 'info');
+                const existing = await checkExistingNarrator(narratorName);
+                
+                if (existing) {
+                    // Show existing profile instead of searching
+                    loading.classList.remove('active');
+                    searchBtn.disabled = false;
+                    displayExistingProfile(existing, narratorName);
+                    return;
+                }
+                
+                log('Not found in database, searching external sources...', 'info');
+            }
+
+            // Check fast mode
+            const fastMode = document.getElementById('fastModeToggle')?.checked || false;
+            
+            log(`Searching external sources${fastMode ? ' (Fast Mode)' : ''}...`);
 
             // Setup progress indicators
             sourceProgress.innerHTML = Object.entries(SOURCES).map(([key, src]) =>
@@ -3141,9 +3250,22 @@
         async function displayResult(data) {
             currentData = data;
             
-            // Check if narrator already exists in database
-            const existing = await checkExistingNarrator(data.name);
-            updateUIForExistingNarrator(existing);
+            // Check if this is a change request (narrator already exists)
+            const isChangeRequest = existingNarratorData !== null;
+            
+            // Update button visibility
+            const newButtons = document.getElementById('newNarratorButtons');
+            const existingButtons = document.getElementById('existingNarratorButtons');
+            
+            if (isChangeRequest) {
+                // Show change request buttons
+                newButtons.style.display = 'none';
+                existingButtons.style.display = 'flex';
+            } else {
+                // Show upload button for new narrator
+                newButtons.style.display = 'flex';
+                existingButtons.style.display = 'none';
+            }
             
             document.getElementById('narratorName').textContent = data.name;
 
@@ -3912,7 +4034,7 @@ Write the bio directly without any preamble:`;
             try {
                 const doc = await firestore.collection(COLLECTION_NAME).doc(docId).get();
                 if (doc.exists) {
-                    log(`Found existing narrator in database: ${name}`, 'success');
+                    log(`Found "${name}" in database`, 'success');
                     return { id: docId, ...doc.data() };
                 }
             } catch (error) {
@@ -3921,56 +4043,61 @@ Write the bio directly without any preamble:`;
             return null;
         }
 
-        // Update UI based on whether narrator exists
-        function updateUIForExistingNarrator(existing) {
-            existingNarratorData = existing;
+        // Display existing narrator profile
+        function displayExistingProfile(data, searchName) {
+            existingNarratorData = data;
             
-            const newButtons = document.getElementById('newNarratorButtons');
-            const existingButtons = document.getElementById('existingNarratorButtons');
-            const existingBanner = document.getElementById('existingDataBanner');
+            const card = document.getElementById('existingProfileCard');
+            const img = document.getElementById('existingImage');
+            const noImg = document.getElementById('existingNoImage');
+            const name = document.getElementById('existingNarratorName');
+            const bio = document.getElementById('existingBio');
+            const noBio = document.getElementById('existingNoBio');
             
-            if (existing) {
-                // Narrator exists - show request change / report buttons
-                newButtons.style.display = 'none';
-                existingButtons.style.display = 'flex';
-                existingBanner.style.display = 'block';
-                
-                // Add existing data to the results with "Database" source
-                if (existing.imageUrl && currentData) {
-                    // Add database image as first option
-                    currentData.images.unshift({
-                        url: existing.imageUrl,
-                        source: '✓ Database',
-                        score: 1000 // Highest score
-                    });
-                }
-                
-                if (existing.bio && currentData) {
-                    // Add database bio as first option
-                    currentData.bios.unshift({
-                        text: existing.bio,
-                        source: '✓ Database',
-                        length: existing.bio.length
-                    });
-                }
+            // Set name
+            name.textContent = data.name || searchName;
+            
+            // Set image
+            if (data.imageUrl) {
+                img.src = data.imageUrl;
+                img.style.display = 'block';
+                noImg.style.display = 'none';
             } else {
-                // New narrator - show upload button
-                newButtons.style.display = 'flex';
-                existingButtons.style.display = 'none';
-                existingBanner.style.display = 'none';
+                img.style.display = 'none';
+                noImg.style.display = 'flex';
             }
+            
+            // Set bio
+            if (data.bio) {
+                bio.textContent = data.bio;
+                bio.style.display = 'block';
+                noBio.style.display = 'none';
+            } else {
+                bio.style.display = 'none';
+                noBio.style.display = 'block';
+            }
+            
+            card.style.display = 'block';
+            log('Displaying existing profile from database', 'success');
+        }
+
+        // Start change request - runs the normal search
+        function startChangeRequest() {
+            log('Starting change request - searching external sources...', 'info');
+            document.getElementById('existingProfileCard').style.display = 'none';
+            
+            // Run search but skip database check
+            performSearch(true);
         }
 
         // Modal functions
         function showRequestChangeModal() {
+            // This modal asks for optional reason/email before submitting
             document.getElementById('requestChangeModal').style.display = 'flex';
         }
 
         function closeRequestChangeModal() {
             document.getElementById('requestChangeModal').style.display = 'none';
-            // Reset form
-            document.getElementById('changeImage').checked = false;
-            document.getElementById('changeBio').checked = false;
             document.getElementById('changeReason').value = '';
             document.getElementById('changeEmail').value = '';
         }
@@ -3987,22 +4114,15 @@ Write the bio directly without any preamble:`;
             document.getElementById('reportEmail').value = '';
         }
 
-        // Submit change request
+        // Submit change request - uses currently selected image/bio
         async function submitChangeRequest() {
             if (!currentData || !existingNarratorData) {
                 showFirebaseStatus('No data to submit', 'error');
                 return;
             }
 
-            const changeImage = document.getElementById('changeImage').checked;
-            const changeBio = document.getElementById('changeBio').checked;
             const reason = document.getElementById('changeReason').value.trim();
             const email = document.getElementById('changeEmail').value.trim();
-
-            if (!changeImage && !changeBio) {
-                alert('Please select what you would like to change.');
-                return;
-            }
 
             if (!firestore) {
                 if (!initFirebase()) return;
@@ -4017,7 +4137,7 @@ Write the bio directly without any preamble:`;
                 let newImageUrl = null;
                 let newBio = null;
 
-                if (changeImage && currentData.selectedImage !== null) {
+                if (currentData.selectedImage !== null) {
                     if (currentData.selectedImage === 'custom') {
                         newImageUrl = currentData.customImageData || document.getElementById('customImageUrl')?.value?.trim();
                     } else if (typeof currentData.selectedImage === 'number') {
@@ -4025,7 +4145,7 @@ Write the bio directly without any preamble:`;
                     }
                 }
 
-                if (changeBio && currentData.selectedBio !== null) {
+                if (currentData.selectedBio !== null) {
                     if (currentData.selectedBio === 'custom') {
                         newBio = document.getElementById('customBioText')?.value?.trim();
                     } else if (typeof currentData.selectedBio === 'number') {
@@ -4041,8 +4161,8 @@ Write the bio directly without any preamble:`;
                         bio: existingNarratorData.bio || null
                     },
                     proposedChanges: {
-                        imageUrl: changeImage ? newImageUrl : null,
-                        bio: changeBio ? newBio : null
+                        imageUrl: newImageUrl,
+                        bio: newBio
                     },
                     reason: reason || null,
                     submitterEmail: email || null,
