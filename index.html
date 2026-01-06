@@ -1205,7 +1205,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.7.0</span>
+            <span class="version-badge">v1.7.1</span>
         </header>
 
         <div class="search-container">
@@ -4264,7 +4264,11 @@ Write the bio now:`;
         // Check if narrator exists in Firebase database
         async function checkExistingNarrator(name) {
             if (!firestore) {
-                if (!initFirebase()) return null;
+                log('Firebase not initialized, attempting init...', 'warning');
+                if (!initFirebase()) {
+                    log('Firebase init failed', 'error');
+                    return null;
+                }
             }
             
             const docId = name
@@ -4274,11 +4278,15 @@ Write the bio now:`;
                 .replace(/\s+/g, '-')
                 .replace(/-+/g, '-');
             
+            log(`Looking up document ID: "${docId}"`, 'info');
+            
             try {
                 const doc = await firestore.collection(COLLECTION_NAME).doc(docId).get();
                 if (doc.exists) {
                     log(`Found "${name}" in database`, 'success');
                     return { id: docId, ...doc.data() };
+                } else {
+                    log(`Document "${docId}" not found in database`, 'info');
                 }
             } catch (error) {
                 log(`Error checking database: ${error.message}`, 'error');
