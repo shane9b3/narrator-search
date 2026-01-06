@@ -1237,7 +1237,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.9.3</span>
+            <span class="version-badge">v1.9.5</span>
         </header>
 
         <div class="search-container">
@@ -1710,12 +1710,16 @@
             ];
             
             for (const nameVariant of nameVariants) {
-                // Check if bio starts with the name (with optional punctuation/whitespace after)
+                // Only remove name if it's followed by punctuation that indicates a header/title
+                // NOT if it's followed by "is", "was", "has" etc. (part of a sentence)
                 const escapedName = nameVariant.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                const nameRegex = new RegExp(`^${escapedName}[,.:;]?\\s*`, 'i');
                 
-                if (nameRegex.test(cleanedBio)) {
-                    cleanedBio = cleanedBio.replace(nameRegex, '').trim();
+                // Pattern: Name followed by comma, colon, semicolon, or dash (header style)
+                // But NOT followed by " is", " was", " has", " grew" etc. (sentence style)
+                const headerRegex = new RegExp(`^${escapedName}[,:;—–-]\\s*`, 'i');
+                
+                if (headerRegex.test(cleanedBio)) {
+                    cleanedBio = cleanedBio.replace(headerRegex, '').trim();
                     // Capitalize first letter after removing name
                     if (cleanedBio.length > 0) {
                         cleanedBio = cleanedBio.charAt(0).toUpperCase() + cleanedBio.slice(1);
@@ -4511,7 +4515,25 @@
                 ];
                 const randomOpening = openings[Math.floor(Math.random() * openings.length)];
                 
-                const prompt = `"${currentData.name}" narrator bio approximately 4 sentences.`;
+                const prompt = `Create a unique biography for audiobook narrator "${currentData.name}".
+
+SOURCE MATERIAL:
+${existingBios || 'Limited information available.'}
+${awards ? `Awards: ${awards}` : ''}
+${genres ? `Genres: ${genres}` : ''}
+${books ? `Notable audiobooks: ${books}` : ''}
+
+WRITING GUIDELINES:
+- Tone: ${randomStyle}
+- ${randomOpening}
+- Vary sentence length and structure naturally
+- 100-200 words, 1-2 paragraphs
+- Only include facts from the source material above
+- Don't use cliché phrases like "brings characters to life" or "captivates listeners"
+- Avoid starting with their full name - use pronouns or creative alternatives
+- No bullet points or lists
+
+Write the bio now:`;
 
                 // Use Netlify serverless function (API key hidden on server)
                 const response = await fetch('/api/gemini', {
