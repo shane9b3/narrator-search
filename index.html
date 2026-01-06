@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Audiobook Narrator Search</title>
+    <title>The LitLyric Narrator Project</title>
     
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -19,7 +19,7 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            background: linear-gradient(135deg, #0a1628 0%, #0d2137 50%, #0f3460 100%);
             min-height: 100vh;
             color: #e8e8e8;
             padding: 2rem;
@@ -35,11 +35,17 @@
             margin-bottom: 2rem;
         }
 
+        .header-logo {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 1rem;
+        }
+
         h1 {
-            font-size: 2.5rem;
+            font-size: 2.2rem;
             font-weight: 300;
             margin-bottom: 0.5rem;
-            background: linear-gradient(90deg, #e94560, #f5a623);
+            background: linear-gradient(90deg, #0066FF, #00AAFF);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -140,7 +146,7 @@
 
         .database-badge {
             display: inline-block;
-            background: linear-gradient(135deg, #22c55e, #16a34a);
+            background: linear-gradient(135deg, #0066FF, #00AAFF);
             color: white;
             padding: 0.3rem 0.8rem;
             border-radius: 20px;
@@ -161,7 +167,7 @@
         }
 
         .existing-profile-bio h3 {
-            color: #f5a623;
+            color: #00AAFF;
             font-size: 1rem;
             margin-bottom: 1rem;
         }
@@ -261,7 +267,7 @@
         .modal-form textarea:focus,
         .modal-form input:focus {
             outline: none;
-            border-color: #e94560;
+            border-color: #0066FF;
         }
 
         .checkbox-group,
@@ -366,7 +372,7 @@
             font-weight: 600;
             border: none;
             border-radius: 50px;
-            background: linear-gradient(135deg, #e94560, #f5a623);
+            background: linear-gradient(135deg, #0066FF, #00AAFF);
             color: #fff;
             cursor: pointer;
         }
@@ -395,7 +401,7 @@
             width: 50px;
             height: 50px;
             border: 3px solid rgba(255, 255, 255, 0.1);
-            border-top-color: #e94560;
+            border-top-color: #0066FF;
             border-radius: 50%;
             animation: spin 1s linear infinite;
             margin: 0 auto 1rem;
@@ -423,7 +429,7 @@
 
         .source-status.searching {
             background: rgba(233, 69, 96, 0.2);
-            color: #e94560;
+            color: #0066FF;
             animation: pulse 1.5s infinite;
         }
 
@@ -500,7 +506,7 @@
         }
 
         .narrator-tagline {
-            color: #f5a623;
+            color: #00AAFF;
             font-style: italic;
             margin-bottom: 1rem;
         }
@@ -516,7 +522,7 @@
             background: rgba(233, 69, 96, 0.2);
             border-radius: 20px;
             font-size: 0.75rem;
-            color: #e94560;
+            color: #0066FF;
         }
 
         .profile-body {
@@ -531,7 +537,7 @@
             font-size: 1rem;
             font-weight: 600;
             margin-bottom: 1rem;
-            color: #f5a623;
+            color: #00AAFF;
         }
 
         .bio-text {
@@ -556,7 +562,7 @@
 
         .tag.award {
             background: rgba(245, 166, 35, 0.15);
-            color: #f5a623;
+            color: #00AAFF;
         }
 
         .sources-section {
@@ -588,7 +594,7 @@
 
         .source-link:hover {
             background: rgba(255, 255, 255, 0.1);
-            color: #e94560;
+            color: #0066FF;
         }
 
         /* Selection sections */
@@ -601,7 +607,7 @@
             font-size: 1rem;
             font-weight: 600;
             margin-bottom: 1rem;
-            color: #f5a623;
+            color: #00AAFF;
         }
 
         .image-options {
@@ -624,7 +630,7 @@
         }
 
         .image-option.selected {
-            border-color: #e94560;
+            border-color: #0066FF;
             box-shadow: 0 0 20px rgba(233, 69, 96, 0.4);
         }
 
@@ -646,7 +652,7 @@
         }
 
         .image-option-source {
-            color: #f5a623;
+            color: #00AAFF;
             font-weight: 600;
         }
 
@@ -660,7 +666,7 @@
             right: 8px;
             width: 24px;
             height: 24px;
-            background: #e94560;
+            background: #0066FF;
             border-radius: 50%;
             display: none;
             align-items: center;
@@ -703,7 +709,7 @@
         }
 
         .ai-generate-btn.generating {
-            background: linear-gradient(135deg, #f5a623, #e94560);
+            background: linear-gradient(135deg, #00AAFF, #0066FF);
         }
 
         .fast-mode-toggle {
@@ -736,7 +742,7 @@
         }
 
         .bio-option.selected {
-            border-color: #e94560;
+            border-color: #0066FF;
             background: rgba(233, 69, 96, 0.1);
         }
 
@@ -748,7 +754,7 @@
         }
 
         .bio-option-source {
-            color: #f5a623;
+            color: #00AAFF;
             font-weight: 600;
             font-size: 0.85rem;
         }
@@ -784,8 +790,8 @@
         }
 
         .bio-option.selected .bio-option-check {
-            background: #e94560;
-            border-color: #e94560;
+            background: #0066FF;
+            border-color: #0066FF;
             color: white;
         }
 
@@ -800,7 +806,7 @@
             font-size: 1rem;
             font-weight: 600;
             margin-bottom: 1rem;
-            color: #f5a623;
+            color: #00AAFF;
         }
 
         #exportData {
@@ -820,7 +826,7 @@
         .export-btn {
             margin-top: 1rem;
             padding: 0.75rem 1.5rem;
-            background: linear-gradient(135deg, #e94560, #f5a623);
+            background: linear-gradient(135deg, #0066FF, #00AAFF);
             border: none;
             border-radius: 8px;
             color: white;
@@ -886,7 +892,7 @@
         .firebase-config label {
             display: block;
             margin-bottom: 0.25rem;
-            color: #f5a623;
+            color: #00AAFF;
             font-size: 0.85rem;
         }
 
@@ -939,7 +945,7 @@
         }
 
         .config-toggle:hover {
-            color: #f5a623;
+            color: #00AAFF;
         }
 
         .no-options {
@@ -976,7 +982,7 @@
             align-items: center;
             justify-content: center;
             background: rgba(233, 69, 96, 0.1);
-            color: #e94560;
+            color: #0066FF;
             border: 2px dashed rgba(233, 69, 96, 0.3);
             border-radius: 8px;
         }
@@ -1001,7 +1007,7 @@
         .custom-input-container label {
             display: block;
             margin-bottom: 0.5rem;
-            color: #f5a623;
+            color: #00AAFF;
             font-weight: 600;
             font-size: 0.9rem;
         }
@@ -1021,7 +1027,7 @@
         .custom-input-container input:focus,
         .custom-input-container textarea:focus {
             outline: none;
-            border-color: #e94560;
+            border-color: #0066FF;
         }
 
         .custom-input-container textarea {
@@ -1062,8 +1068,8 @@
 
         .tab-btn.active {
             background: rgba(233, 69, 96, 0.2);
-            border-color: #e94560;
-            color: #e94560;
+            border-color: #0066FF;
+            color: #0066FF;
         }
 
         .image-tab-content {
@@ -1086,9 +1092,9 @@
 
         .file-upload-area:hover,
         .file-upload-area.drag-over {
-            border-color: #e94560;
+            border-color: #0066FF;
             background: rgba(233, 69, 96, 0.1);
-            color: #e94560;
+            color: #0066FF;
         }
 
         .file-upload-area .upload-icon {
@@ -1145,7 +1151,7 @@
         .suggestion-chip:hover {
             background: rgba(233, 69, 96, 0.2);
             border-color: rgba(233, 69, 96, 0.3);
-            color: #e94560;
+            color: #0066FF;
         }
 
         /* Debug panel */
@@ -1162,7 +1168,7 @@
         }
 
         .debug-panel h4 {
-            color: #f5a623;
+            color: #00AAFF;
             margin-bottom: 0.5rem;
         }
 
@@ -1196,9 +1202,10 @@
 <body>
     <div class="container">
         <header>
-            <h1>🎧 Narrator Lookup</h1>
+            <img src="logo.png" alt="LitLyric Logo" class="header-logo">
+            <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.5.5</span>
+            <span class="version-badge">v1.6.0</span>
         </header>
 
         <div class="search-container">
@@ -4141,21 +4148,35 @@ Write the bio now:`;
                 let newImageUrl = null;
                 let newBio = null;
 
-                if (currentData.selectedImage !== null) {
-                    if (currentData.selectedImage === 'custom') {
-                        newImageUrl = currentData.customImageData || document.getElementById('customImageUrl')?.value?.trim();
-                    } else if (typeof currentData.selectedImage === 'number') {
-                        newImageUrl = currentData.images[currentData.selectedImage]?.url;
-                    }
+                // Debug logging
+                log(`Selected image index: ${currentData.selectedImage}`, 'info');
+                log(`Selected bio index: ${currentData.selectedBio}`, 'info');
+
+                // Handle image selection
+                if (currentData.selectedImage === 'custom') {
+                    newImageUrl = currentData.customImageData || document.getElementById('customImageUrl')?.value?.trim();
+                    log(`Custom image URL: ${newImageUrl ? 'yes' : 'no'}`, 'info');
+                } else if (typeof currentData.selectedImage === 'number' && currentData.selectedImage >= 0) {
+                    newImageUrl = currentData.images[currentData.selectedImage]?.url;
+                    log(`Image from index ${currentData.selectedImage}: ${newImageUrl ? newImageUrl.substring(0, 50) + '...' : 'none'}`, 'info');
                 }
 
-                if (currentData.selectedBio !== null) {
-                    if (currentData.selectedBio === 'custom') {
-                        newBio = document.getElementById('customBioText')?.value?.trim();
-                    } else if (typeof currentData.selectedBio === 'number') {
-                        newBio = currentData.bios[currentData.selectedBio]?.text;
-                    }
+                // Handle bio selection
+                if (currentData.selectedBio === 'custom') {
+                    newBio = document.getElementById('customBioText')?.value?.trim();
+                } else if (typeof currentData.selectedBio === 'number' && currentData.selectedBio >= 0) {
+                    newBio = currentData.bios[currentData.selectedBio]?.text;
                 }
+
+                // Warn if nothing selected
+                if (!newImageUrl && !newBio) {
+                    showFirebaseStatus('Please select an image or bio to submit', 'error');
+                    btn.disabled = false;
+                    btn.textContent = 'Submit for Review';
+                    return;
+                }
+
+                log(`Submitting - Image: ${newImageUrl ? 'yes' : 'no'}, Bio: ${newBio ? 'yes' : 'no'}`, 'info');
 
                 const changeRequest = {
                     narratorId: existingNarratorData.id,
@@ -4165,8 +4186,8 @@ Write the bio now:`;
                         bio: existingNarratorData.bio || null
                     },
                     proposedChanges: {
-                        imageUrl: newImageUrl,
-                        bio: newBio
+                        imageUrl: newImageUrl || null,
+                        bio: newBio || null
                     },
                     reason: reason || null,
                     submitterEmail: email || null,
