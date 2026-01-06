@@ -975,27 +975,10 @@
                         🔥 Upload to Firebase
                     </button>
                 </div>
-                <button class="config-toggle" onclick="toggleFirebaseConfig()">⚙️ Configure Firebase</button>
-                
-                <div class="firebase-config" id="firebaseConfig">
-                    <label>API Key:</label>
-                    <input type="text" id="fbApiKey" placeholder="AIza..." />
-                    
-                    <label>Project ID:</label>
-                    <input type="text" id="fbProjectId" placeholder="your-project-id" />
-                    
-                    <label>Storage Bucket:</label>
-                    <input type="text" id="fbStorageBucket" placeholder="your-project-id.firebasestorage.app" />
-                    
-                    <label>Collection Name (Firestore):</label>
-                    <input type="text" id="fbCollection" value="narrators" placeholder="narrators" />
-                    
-                    <button class="export-btn" onclick="saveFirebaseConfig()" style="margin-top: 0.5rem;">
-                        💾 Save Config
-                    </button>
-                </div>
-                
                 <div class="firebase-status" id="firebaseStatus"></div>
+                <p style="font-size: 0.75rem; color: #6b7280; margin-top: 0.5rem; text-align: center;">
+                    Community database - uploads are shared with all LitLyric users
+                </p>
             </div>
         </div>
 
@@ -1192,12 +1175,26 @@
         }
 
         async function fetchViaProxy(url) {
-            const proxyUrl = `/proxy?url=${encodeURIComponent(url)}`;
-            const response = await fetch(proxyUrl);
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+            // Try multiple CORS proxies in case one fails
+            const corsProxies = [
+                (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+                (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+                (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`
+            ];
+            
+            for (const proxyFn of corsProxies) {
+                try {
+                    const proxyUrl = proxyFn(url);
+                    const response = await fetch(proxyUrl);
+                    if (response.ok) {
+                        return await response.text();
+                    }
+                } catch (e) {
+                    // Try next proxy
+                    continue;
+                }
             }
-            return await response.text();
+            throw new Error('All CORS proxies failed');
         }
 
         // Strip HTML tags
@@ -3062,61 +3059,44 @@
             suggestions.style.display = 'block';
         }
 
-        // Firebase Functions
+        // Firebase Functions - Hardcoded config for LitLyric community database
         let firebaseApp = null;
         let firestore = null;
         let storage = null;
+        
+        // Hardcoded Firebase configuration
+        const FIREBASE_CONFIG = {
+            apiKey: "AIzaSyDPKVYX_lPfpPMfwF0ViesSr0YizYZyAX8",
+            authDomain: "litlyric-narrator-batabase.firebaseapp.com",
+            projectId: "litlyric-narrator-batabase",
+            storageBucket: "litlyric-narrator-batabase.firebasestorage.app",
+            messagingSenderId: "312216800042",
+            appId: "1:312216800042:web:9b90057de27703b4b1ac53"
+        };
+        
+        const COLLECTION_NAME = 'narrators';
 
         function toggleFirebaseConfig() {
-            const config = document.getElementById('firebaseConfig');
-            config.classList.toggle('show');
+            // No longer needed - config is hardcoded
         }
 
         function saveFirebaseConfig() {
-            const config = {
-                apiKey: document.getElementById('fbApiKey').value,
-                projectId: document.getElementById('fbProjectId').value,
-                storageBucket: document.getElementById('fbStorageBucket').value,
-                collection: document.getElementById('fbCollection').value || 'narrators'
-            };
-            
-            localStorage.setItem('firebaseConfig', JSON.stringify(config));
-            showFirebaseStatus('Configuration saved!', 'success');
-            
-            // Initialize Firebase with new config
-            initFirebase(config);
+            // No longer needed - config is hardcoded
         }
 
         function loadFirebaseConfig() {
-            const saved = localStorage.getItem('firebaseConfig');
-            if (saved) {
-                const config = JSON.parse(saved);
-                document.getElementById('fbApiKey').value = config.apiKey || '';
-                document.getElementById('fbProjectId').value = config.projectId || '';
-                document.getElementById('fbStorageBucket').value = config.storageBucket || '';
-                document.getElementById('fbCollection').value = config.collection || 'narrators';
-                
-                if (config.apiKey && config.projectId) {
-                    initFirebase(config);
-                }
-            }
+            // Auto-initialize with hardcoded config
+            initFirebase();
         }
 
-        function initFirebase(config) {
+        function initFirebase() {
             try {
                 // Delete existing app if any
                 if (firebaseApp) {
                     firebaseApp.delete();
                 }
                 
-                const firebaseConfig = {
-                    apiKey: config.apiKey,
-                    authDomain: `${config.projectId}.firebaseapp.com`,
-                    projectId: config.projectId,
-                    storageBucket: config.storageBucket
-                };
-                
-                firebaseApp = firebase.initializeApp(firebaseConfig);
+                firebaseApp = firebase.initializeApp(FIREBASE_CONFIG);
                 firestore = firebase.firestore();
                 storage = firebase.storage();
                 
@@ -3147,16 +3127,9 @@
                 return;
             }
             
-            const config = JSON.parse(localStorage.getItem('firebaseConfig') || '{}');
-            
-            if (!config.apiKey || !config.projectId) {
-                showFirebaseStatus('Please configure Firebase first (click ⚙️ Configure Firebase)', 'error');
-                document.getElementById('firebaseConfig').classList.add('show');
-                return;
-            }
-            
+            // Initialize Firebase if not already done
             if (!firestore) {
-                if (!initFirebase(config)) {
+                if (!initFirebase()) {
                     return;
                 }
             }
@@ -3196,7 +3169,7 @@
                     .replace(/-+/g, '-');
                 
                 // Check if narrator already exists
-                const existingDoc = await firestore.collection(config.collection).doc(docId).get();
+                const existingDoc = await firestore.collection(COLLECTION_NAME).doc(docId).get();
                 
                 if (existingDoc.exists) {
                     const existingData = existingDoc.data();
@@ -3218,7 +3191,7 @@
                 // Upload image to Firebase Storage
                 let storedImageUrl = null;
                 
-                if (imageUrl && storage && config.storageBucket) {
+                if (imageUrl && storage) {
                     btn.textContent = '⏳ Uploading image...';
                     showFirebaseStatus('Uploading image to Storage...', 'success');
                     
@@ -3272,7 +3245,7 @@
                     narratorData.createdAt = firebase.firestore.FieldValue.serverTimestamp();
                 }
                 
-                await firestore.collection(config.collection).doc(docId).set(narratorData, { merge: true });
+                await firestore.collection(COLLECTION_NAME).doc(docId).set(narratorData, { merge: true });
                 
                 btn.classList.remove('uploading');
                 btn.classList.add('success');
