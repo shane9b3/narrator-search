@@ -1197,6 +1197,38 @@
                 text-align: center;
             }
         }
+
+        .still-searching {
+            background: linear-gradient(90deg, rgba(0, 102, 255, 0.1), rgba(0, 170, 255, 0.1));
+            border: 1px solid rgba(0, 102, 255, 0.3);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: #00AAFF;
+            font-size: 0.9rem;
+            animation: pulse-bg 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-bg {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .searching-spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(0, 170, 255, 0.3);
+            border-top-color: #00AAFF;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -1205,7 +1237,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.7.4</span>
+            <span class="version-badge">v1.8.0</span>
         </header>
 
         <div class="search-container">
@@ -1258,6 +1290,9 @@
 
         <!-- Search Results Card (shown for new narrators or when editing) -->
         <div class="result-card" id="resultCard">
+            <div class="still-searching" id="stillSearching" style="display: none;">
+                <span class="searching-spinner"></span> Still searching for more sources...
+            </div>
             <div class="profile-header">
                 <div class="profile-info-header">
                     <h2 class="narrator-name" id="narratorName"></h2>
@@ -3304,6 +3339,7 @@
             loading.classList.add('active');
             resultCard.classList.remove('active');
             document.getElementById('existingProfileCard').style.display = 'none';
+            document.getElementById('stillSearching').style.display = 'none';
             errorMessage.classList.remove('active');
             suggestions.style.display = 'none';
             searchBtn.disabled = true;
@@ -3338,118 +3374,63 @@
             ).join('');
 
             try {
-                // Core sources (always search these) - increased timeouts
+                // Collect results as they come in
+                const liveResults = [];
+                let searchComplete = false;
+                const stillSearchingEl = document.getElementById('stillSearching');
+                
+                // Function to update display with current results
+                const updateLiveDisplay = () => {
+                    if (liveResults.length > 0) {
+                        const merged = mergeResults(narratorName, liveResults.filter(r => r));
+                        if (merged.sources.length > 0) {
+                            loading.classList.remove('active');
+                            stillSearchingEl.style.display = 'flex';
+                            displayResult(merged);
+                            resultCard.classList.add('active');
+                        }
+                    }
+                };
+                
+                // Create search functions that update live
+                const createSearch = (name, searchFn, timeout, statusKey, checkImage = false) => {
+                    return (async () => {
+                        updateSourceStatus(statusKey, 'searching');
+                        try {
+                            const r = await fetchWithTimeout(searchFn, timeout);
+                            const found = checkImage ? r?.imageUrl : r;
+                            updateSourceStatus(statusKey, found ? 'found' : 'not-found');
+                            if (r) {
+                                liveResults.push(r);
+                                if (!searchComplete) updateLiveDisplay();
+                            }
+                            return r;
+                        } catch (e) {
+                            updateSourceStatus(statusKey, 'not-found');
+                            log(`${name}: Timeout or error`, 'warning');
+                            return null;
+                        }
+                    })();
+                };
+                
+                // Core sources (always search these)
                 const coreSearches = [
-                    (async () => {
-                        updateSourceStatus('audible', 'searching');
-                        try {
-                            const r = await fetchWithTimeout(searchAudible(narratorName), 20000);
-                            updateSourceStatus('audible', r ? 'found' : 'not-found');
-                            return r;
-                        } catch (e) {
-                            updateSourceStatus('audible', 'not-found');
-                            log(`Audible: Timeout or error`, 'warning');
-                            return null;
-                        }
-                    })(),
-                    (async () => {
-                        updateSourceStatus('wikipedia', 'searching');
-                        try {
-                            const r = await fetchWithTimeout(searchWikipedia(narratorName), 15000);
-                            updateSourceStatus('wikipedia', r ? 'found' : 'not-found');
-                            return r;
-                        } catch (e) {
-                            updateSourceStatus('wikipedia', 'not-found');
-                            log(`Wikipedia: Timeout or error`, 'warning');
-                            return null;
-                        }
-                    })(),
-                    (async () => {
-                        updateSourceStatus('audiofile', 'searching');
-                        try {
-                            const r = await fetchWithTimeout(searchAudioFile(narratorName), 20000);
-                            updateSourceStatus('audiofile', r ? 'found' : 'not-found');
-                            return r;
-                        } catch (e) {
-                            updateSourceStatus('audiofile', 'not-found');
-                            log(`AudioFile: Timeout or error`, 'warning');
-                            return null;
-                        }
-                    })(),
-                    (async () => {
-                        updateSourceStatus('tantor', 'searching');
-                        try {
-                            const r = await fetchWithTimeout(searchTantor(narratorName), 15000);
-                            updateSourceStatus('tantor', r ? 'found' : 'not-found');
-                            return r;
-                        } catch (e) {
-                            updateSourceStatus('tantor', 'not-found');
-                            log(`Tantor: Timeout or error`, 'warning');
-                            return null;
-                        }
-                    })(),
-                    (async () => {
-                        updateSourceStatus('imdb', 'searching');
-                        try {
-                            const r = await fetchWithTimeout(searchIMDB(narratorName), 20000);
-                            updateSourceStatus('imdb', r?.imageUrl ? 'found' : 'not-found');
-                            return r;
-                        } catch (e) {
-                            updateSourceStatus('imdb', 'not-found');
-                            log(`IMDB: Timeout or error`, 'warning');
-                            return null;
-                        }
-                    })()
+                    createSearch('Audible', searchAudible(narratorName), 45000, 'audible'),
+                    createSearch('Wikipedia', searchWikipedia(narratorName), 45000, 'wikipedia'),
+                    createSearch('AudioFile', searchAudioFile(narratorName), 45000, 'audiofile'),
+                    createSearch('Tantor', searchTantor(narratorName), 30000, 'tantor'),
+                    createSearch('IMDB', searchIMDB(narratorName), 45000, 'imdb', true)
                 ];
                 
                 // Additional sources (skip in fast mode)
                 const additionalSearches = fastMode ? [] : [
-                    (async () => {
-                        updateSourceStatus('personalsite', 'searching');
-                        try {
-                            const r = await fetchWithTimeout(searchPersonalSite(narratorName), 15000);
+                    createSearch('Personal Site', searchPersonalSite(narratorName), 30000, 'personalsite'),
+                    createSearch('Voices to Know', searchVoicesToKnow(narratorName), 30000, 'voicestoknow'),
+                    createSearch('Soundbooth', searchSoundbooth(narratorName), 30000, 'soundbooth'),
+                    createSearch('SoundCloud', searchSoundCloud(narratorName), 30000, 'soundcloud')
+                ];
                             updateSourceStatus('personalsite', r ? 'found' : 'not-found');
                             return r;
-                        } catch (e) {
-                            updateSourceStatus('personalsite', 'not-found');
-                            return null;
-                        }
-                    })(),
-                    (async () => {
-                        updateSourceStatus('voicestoknow', 'searching');
-                        try {
-                            const r = await fetchWithTimeout(searchVoicesToKnow(narratorName), 15000);
-                            updateSourceStatus('voicestoknow', r ? 'found' : 'not-found');
-                            return r;
-                        } catch (e) {
-                            updateSourceStatus('voicestoknow', 'not-found');
-                            return null;
-                        }
-                    })(),
-                    (async () => {
-                        updateSourceStatus('soundbooth', 'searching');
-                        try {
-                            const r = await fetchWithTimeout(searchSoundbooth(narratorName), 15000);
-                            updateSourceStatus('soundbooth', r ? 'found' : 'not-found');
-                            return r;
-                        } catch (e) {
-                            updateSourceStatus('soundbooth', 'not-found');
-                            return null;
-                        }
-                    })(),
-                    (async () => {
-                        updateSourceStatus('soundcloud', 'searching');
-                        try {
-                            const r = await fetchWithTimeout(searchSoundCloud(narratorName), 15000);
-                            updateSourceStatus('soundcloud', r ? 'found' : 'not-found');
-                            return r;
-                        } catch (e) {
-                            updateSourceStatus('soundcloud', 'not-found');
-                            return null;
-                        }
-                    })()
-                ];
-                
                 // Mark skipped sources in fast mode
                 if (fastMode) {
                     ['personalsite', 'voicestoknow', 'soundbooth', 'soundcloud'].forEach(src => {
@@ -3457,20 +3438,25 @@
                     });
                 }
 
-                const results = await Promise.all([...coreSearches, ...additionalSearches]);
+                // Wait for all searches to complete
+                await Promise.all([...coreSearches, ...additionalSearches]);
+                
+                // Mark search as complete and hide indicator
+                searchComplete = true;
+                stillSearchingEl.style.display = 'none';
                 
                 // Check if we have any image at all
-                let hasImage = results.some(r => r?.imageUrl);
+                let hasImage = liveResults.some(r => r?.imageUrl);
                 
                 // If still no image, try Google as last resort
                 if (!hasImage) {
                     log('No image found, trying Google...', 'info');
                     updateSourceStatus('google', 'searching');
                     try {
-                        const googleResult = await fetchWithTimeout(searchGoogle(narratorName), 20000);
+                        const googleResult = await fetchWithTimeout(searchGoogle(narratorName), 30000);
                         updateSourceStatus('google', googleResult ? 'found' : 'not-found');
                         if (googleResult) {
-                            results.push(googleResult);
+                            liveResults.push(googleResult);
                         }
                     } catch (e) {
                         updateSourceStatus('google', 'not-found');
@@ -3478,7 +3464,7 @@
                     }
                 }
                 
-                const merged = mergeResults(narratorName, results);
+                const merged = mergeResults(narratorName, liveResults.filter(r => r));
 
                 log(`Search complete. Sources found: ${merged.sources.length}`, 'success');
                 log(`Images found: ${merged.images.length}`, merged.images.length > 0 ? 'success' : 'error');
@@ -3489,6 +3475,7 @@
                     return;
                 }
 
+                // Final display with all results
                 displayResult(merged);
 
             } catch (error) {
@@ -4269,7 +4256,7 @@ Write the bio now:`;
         }
 
         // Timeout wrapper for fetch operations
-        function fetchWithTimeout(promise, timeoutMs = 8000) {
+        function fetchWithTimeout(promise, timeoutMs = 30000) {
             return Promise.race([
                 promise,
                 new Promise((_, reject) => 
