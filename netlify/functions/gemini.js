@@ -1,6 +1,8 @@
 // Netlify serverless function to proxy Gemini API requests
 // API key is stored in Netlify environment variables (hidden from public)
 
+const https = require('https');
+
 exports.handler = async (event) => {
   // Only allow POST requests
   if (event.httpMethod !== 'POST') {
@@ -21,28 +23,42 @@ exports.handler = async (event) => {
   }
 
   try {
-    const requestBody = JSON.parse(event.body);
+    const requestBody = event.body;
     
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-      {
+    const data = await new Promise((resolve, reject) => {
+      const options = {
+        hostname: 'generativelanguage.googleapis.com',
+        path: `/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody)
-      }
-    );
+        }
+      };
 
-    const data = await response.json();
+      const req = https.request(options, (res) => {
+        let body = '';
+        res.on('data', chunk => body += chunk);
+        res.on('end', () => {
+          try {
+            resolve({ status: res.statusCode, data: JSON.parse(body) });
+          } catch (e) {
+            reject(new Error('Failed to parse response'));
+          }
+        });
+      });
+
+      req.on('error', reject);
+      req.write(requestBody);
+      req.end();
+    });
 
     return {
-      statusCode: response.ok ? 200 : response.status,
+      statusCode: data.status,
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*'
       },
-      body: JSON.stringify(data)
+      body: JSON.stringify(data.data)
     };
   } catch (error) {
     return {
