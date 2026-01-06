@@ -1198,7 +1198,7 @@
         <header>
             <h1>🎧 Narrator Lookup</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.5.3</span>
+            <span class="version-badge">v1.5.4</span>
         </header>
 
         <div class="search-container">
@@ -3825,14 +3825,10 @@
                 
                 btn.classList.remove('uploading');
                 btn.classList.add('success');
-                btn.textContent = '✓ Uploaded!';
+                btn.textContent = '✓ Uploaded to Database';
                 showFirebaseStatus(`Successfully saved "${currentData.name}" (ID: ${docId})`, 'success');
                 
-                setTimeout(() => {
-                    btn.classList.remove('success');
-                    btn.textContent = '🔥 Upload to Firebase';
-                    btn.disabled = false;
-                }, 3000);
+                // Keep success state - don't reset button
                 
             } catch (error) {
                 console.error('Upload error:', error);
