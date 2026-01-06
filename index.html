@@ -1205,7 +1205,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.6.4</span>
+            <span class="version-badge">v1.6.5</span>
         </header>
 
         <div class="search-container">
@@ -2383,13 +2383,25 @@
 
                 try {
                     const html = await fetchViaProxy(url);
+                    
+                    log(`SoundCloud: Response length: ${html.length}`);
 
                     // Check if profile exists
                     if (html.includes("We can't find that user") || 
                         html.includes('Something went wrong') ||
+                        html.includes('404') ||
                         html.length < 1000) {
+                        log(`SoundCloud: Profile not found at ${username}`);
                         continue; // Try next variant
                     }
+                    
+                    // Check if this looks like a valid SoundCloud page
+                    if (!html.includes('soundcloud') && !html.includes('sndcdn')) {
+                        log(`SoundCloud: Invalid response for ${username}`);
+                        continue;
+                    }
+                    
+                    log(`SoundCloud: Valid page found for ${username}`);
 
                     const result = {
                         source: 'soundcloud',
@@ -2408,16 +2420,30 @@
                     }
 
                     // Extract avatar image - SoundCloud uses sndcdn.com for images
-                    const imgMatch = html.match(/avatars[^"]*-t(?:1080x1080|500x500|200x200)[^"]*\.jpg/i) ||
-                                     html.match(/(https:\/\/i1\.sndcdn\.com\/avatars-[^"]+\.jpg)/i);
-                    if (imgMatch) {
-                        let imgUrl = imgMatch[0];
-                        if (!imgUrl.startsWith('http')) {
-                            imgUrl = 'https://i1.sndcdn.com/' + imgUrl;
+                    // Try multiple patterns
+                    const imgPatterns = [
+                        /avatars-[^"'\s]+\.jpg/gi,
+                        /(https:\/\/i1\.sndcdn\.com\/avatars-[^"'\s]+)/gi,
+                        /"avatar_url"\s*:\s*"([^"]+)"/i,
+                        /avatars[^"']*-t(?:1080x1080|500x500|200x200|large|original)[^"']*\.jpg/gi
+                    ];
+                    
+                    for (const pattern of imgPatterns) {
+                        const imgMatch = html.match(pattern);
+                        if (imgMatch) {
+                            let imgUrl = imgMatch[1] || imgMatch[0];
+                            if (!imgUrl.startsWith('http')) {
+                                imgUrl = 'https://i1.sndcdn.com/' + imgUrl;
+                            }
+                            // Upgrade to larger size
+                            imgUrl = imgUrl.replace(/-t\d+x\d+/, '-t500x500')
+                                          .replace(/-large/, '-t500x500')
+                                          .replace(/-original/, '-t500x500');
+                            result.imageUrl = imgUrl;
+                            log(`SoundCloud: Found image: ${imgUrl.substring(0, 60)}...`);
+                            break;
                         }
-                        imgUrl = imgUrl.replace(/-t\d+x\d+/, '-t500x500');
-                        result.imageUrl = imgUrl;
-                        log(`SoundCloud: Found image`);
+                    }
                     }
 
                     // Extract bio/description
@@ -2446,15 +2472,16 @@
             const nameParts = nameLower.split(/\s+/);
             const firstName = nameParts[0] || '';
             const lastName = nameParts[nameParts.length - 1] || '';
+            const fullNameNoSpaces = nameLower.replace(/\s+/g, '');
             
             // Common personal website domain patterns
             const domainVariants = [
+                `${fullNameNoSpaces}.com`,              // jamesdanielburkdoll.com
+                `www.${fullNameNoSpaces}.com`,          // www.jamesdanielburkdoll.com
+                `${firstName}${lastName}.com`,          // jamesburkdoll.com
                 `www.${firstName}${lastName}.com`,
-                `www.${nameLower.replace(/\s+/g, '')}.com`,
-                `${firstName}${lastName}.com`,
-                `${nameLower.replace(/\s+/g, '')}.com`,
+                `${firstName}-${lastName}.com`,
                 `www.${firstName}-${lastName}.com`,
-                `www.${nameLower.replace(/\s+/g, '-')}.com`,
             ];
             
             const uniqueDomains = [...new Set(domainVariants)];
@@ -2465,16 +2492,20 @@
                 
                 try {
                     const html = await fetchViaProxy(url);
+                    log(`Personal Site: Response length: ${html.length}`);
                     
                     // Check if it's a real page (not a parked domain or error)
                     if (html.length < 2000 || 
                         html.includes('domain is for sale') ||
                         html.includes('buy this domain') ||
                         html.includes('parked') ||
-                        html.includes('404') ||
-                        html.includes('not found')) {
+                        html.includes('Page Not Found') ||
+                        html.includes('404 Not Found')) {
+                        log(`Personal Site: Invalid page for ${domain}`);
                         continue;
                     }
+                    
+                    log(`Personal Site: Valid page found at ${domain}`);
                     
                     const result = {
                         source: 'personalsite',
@@ -2484,27 +2515,41 @@
                         bio: null
                     };
                     
-                    // Look for profile/headshot images
+                    // Look for ANY jpg/png image that's likely a profile photo
                     const imgPatterns = [
-                        /<img[^>]+src=["']([^"']+(?:headshot|profile|author|narrator|photo|portrait|about)[^"']*)["']/gi,
-                        /<img[^>]+(?:class|id)=["'][^"']*(?:headshot|profile|author|photo|portrait)[^"']*["'][^>]+src=["']([^"']+)["']/gi,
-                        /src=["']([^"']+\.(?:jpg|jpeg|png|webp))["'][^>]*(?:class|id)=["'][^"']*(?:headshot|profile|author|photo)[^"']*["']/gi,
-                        // Hero images or main images
-                        /<img[^>]+src=["']([^"']+\.(?:jpg|jpeg|png|webp))["'][^>]*(?:width|height)=["']?[2-9]\d{2}/gi
+                        // Images with profile-like keywords in src or alt
+                        /<img[^>]+src=["']([^"']+\.(?:jpg|jpeg|png|webp)[^"']*)["'][^>]*(?:alt=["'][^"']*(?:james|burkdoll|headshot|profile|author|narrator)[^"']*["'])?/gi,
+                        // Any reasonably-sized image
+                        /<img[^>]+src=["']([^"']+\.(?:jpg|jpeg|png|webp))["']/gi,
+                        // Background images
+                        /background(?:-image)?:\s*url\(['"]?([^'")\s]+\.(?:jpg|jpeg|png|webp))['"]?\)/gi,
+                        // Open Graph image
+                        /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/gi
                     ];
                     
                     for (const pattern of imgPatterns) {
                         const matches = html.matchAll(pattern);
                         for (const match of matches) {
                             let imgUrl = match[1];
+                            if (!imgUrl) continue;
+                            
+                            // Skip icons, logos, tiny images
+                            if (imgUrl.includes('icon') || 
+                                imgUrl.includes('logo') || 
+                                imgUrl.includes('button') ||
+                                imgUrl.includes('favicon') ||
+                                imgUrl.includes('sprite') ||
+                                imgUrl.includes('1x1') ||
+                                imgUrl.includes('pixel')) {
+                                continue;
+                            }
+                            
                             if (!imgUrl.startsWith('http')) {
                                 imgUrl = new URL(imgUrl, url).href;
                             }
-                            if (!imgUrl.includes('icon') && !imgUrl.includes('logo') && !imgUrl.includes('button')) {
-                                result.imageUrl = imgUrl;
-                                log(`Personal Site: Found image`);
-                                break;
-                            }
+                            result.imageUrl = imgUrl;
+                            log(`Personal Site: Found image: ${imgUrl.substring(0, 60)}...`);
+                            break;
                         }
                         if (result.imageUrl) break;
                     }
@@ -2529,6 +2574,7 @@
                     }
                     
                 } catch (error) {
+                    log(`Personal Site: Error for ${domain}: ${error.message}`);
                     continue; // Try next domain
                 }
             }
