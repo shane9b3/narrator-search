@@ -1205,7 +1205,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.7.3</span>
+            <span class="version-badge">v1.7.4</span>
         </header>
 
         <div class="search-container">
@@ -1523,7 +1523,7 @@
             if (e.key === 'Enter') performSearch();
         });
 
-        searchBtn.addEventListener('click', performSearch);
+        searchBtn.addEventListener('click', () => performSearch());
 
         function nameToSlug(name) {
             return name.toLowerCase()
