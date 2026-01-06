@@ -1205,7 +1205,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.6.7</span>
+            <span class="version-badge">v1.6.9</span>
         </header>
 
         <div class="search-container">
@@ -2564,8 +2564,8 @@
                         if (result.imageUrl) break;
                     }
                     
-                    // Look for bio/about text
-                    const bioPatterns = [
+                    // Look for bio/about text on homepage
+                    let bioPatterns = [
                         /<(?:p|div)[^>]*(?:class|id)=["'][^"']*(?:bio|about|description)[^"']*["'][^>]*>([^<]{50,500})/gi,
                         /<meta[^>]+name=["']description["'][^>]+content=["']([^"]{50,300})["']/gi
                     ];
@@ -2574,8 +2574,76 @@
                         const match = html.match(pattern);
                         if (match && match[1]) {
                             result.bio = stripHtml(match[1]).trim();
-                            log(`Personal Site: Found bio (${result.bio.length} chars)`);
+                            log(`Personal Site: Found bio on homepage (${result.bio.length} chars)`);
                             break;
+                        }
+                    }
+                    
+                    // Always try about page if we haven't found a good bio yet
+                    if (!result.bio || result.bio.length < 100) {
+                        const aboutPages = ['/about', '/bio', '/about-me', '/about/', '/bio/', '/about-me/'];
+                        
+                        for (const aboutPath of aboutPages) {
+                            try {
+                                const aboutUrl = `https://${domain}${aboutPath}`;
+                                log(`Personal Site: Checking about page ${aboutUrl}`);
+                                const aboutHtml = await fetchViaProxy(aboutUrl);
+                                
+                                if (aboutHtml.length < 1000 || 
+                                    aboutHtml.includes('Page Not Found') ||
+                                    aboutHtml.includes('404 Not Found')) {
+                                    continue;
+                                }
+                                
+                                log(`Personal Site: About page found, length: ${aboutHtml.length}`);
+                                
+                                // Extract paragraphs from about page - look for substantial text
+                                const paragraphMatches = aboutHtml.matchAll(/<p[^>]*>([^<]{100,})<\/p>/gi);
+                                const paragraphs = [];
+                                for (const match of paragraphMatches) {
+                                    const text = stripHtml(match[1]).trim();
+                                    // Skip navigation, footer text, etc.
+                                    if (text.length > 100 && 
+                                        !text.includes('cookie') && 
+                                        !text.includes('privacy') &&
+                                        !text.includes('copyright') &&
+                                        !text.includes('©')) {
+                                        paragraphs.push(text);
+                                    }
+                                }
+                                
+                                if (paragraphs.length > 0) {
+                                    // Take up to first 3 paragraphs, max 1000 chars
+                                    result.bio = paragraphs.slice(0, 3).join(' ').substring(0, 1000);
+                                    log(`Personal Site: Found bio on about page (${result.bio.length} chars)`);
+                                    
+                                    // Also check about page for a better image if we don't have one
+                                    if (!result.imageUrl) {
+                                        for (const pattern of imgPatterns) {
+                                            const matches = aboutHtml.matchAll(pattern);
+                                            for (const match of matches) {
+                                                let imgUrl = match[1];
+                                                if (!imgUrl) continue;
+                                                if (imgUrl.includes('icon') || imgUrl.includes('logo') || 
+                                                    imgUrl.includes('button') || imgUrl.includes('favicon')) {
+                                                    continue;
+                                                }
+                                                if (!imgUrl.startsWith('http')) {
+                                                    imgUrl = new URL(imgUrl, aboutUrl).href;
+                                                }
+                                                result.imageUrl = imgUrl;
+                                                log(`Personal Site: Found image on about page`);
+                                                break;
+                                            }
+                                            if (result.imageUrl) break;
+                                        }
+                                    }
+                                    break;
+                                }
+                            } catch (e) {
+                                // About page doesn't exist, try next
+                                continue;
+                            }
                         }
                     }
                     
