@@ -1237,7 +1237,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.8.6</span>
+            <span class="version-badge">v1.8.8</span>
         </header>
 
         <div class="search-container">
@@ -2865,7 +2865,8 @@
                     url: profileUrl,
                     imageUrl: null,
                     images: [],
-                    name: verifiedName || null
+                    name: verifiedName || null,
+                    bio: null
                 };
                 
                 const foundImages = new Set();
@@ -2884,6 +2885,74 @@
                     if (titleMatch) {
                         result.name = titleMatch[1].replace(' - IMDb', '').trim();
                         log(`IMDB: Found name: ${result.name}`);
+                    }
+                }
+                
+                // Extract bio from IMDB profile
+                // IMDB bios are in various places - try multiple patterns
+                const bioPatterns = [
+                    // Mini bio section
+                    /data-testid="bio-content"[^>]*>([^<]{50,})</i,
+                    // Overview section
+                    /"overview"[^>]*>([^<]{50,})</i,
+                    // Bio text in JSON-LD
+                    /"description"\s*:\s*"([^"]{50,})"/i,
+                    // Known for section sometimes has bio-like text
+                    /class="[^"]*bio[^"]*"[^>]*>([^<]{50,})</i,
+                    // Try to find any substantial paragraph that looks like a bio
+                    /<p[^>]*data-testid="[^"]*bio[^"]*"[^>]*>([\s\S]*?)<\/p>/i
+                ];
+                
+                for (const pattern of bioPatterns) {
+                    const match = profileHtml.match(pattern);
+                    if (match && match[1]) {
+                        let bio = match[1].trim();
+                        // Clean up the bio
+                        bio = bio.replace(/<[^>]*>/g, ' ')  // Remove HTML tags
+                                 .replace(/&amp;/g, '&')
+                                 .replace(/&quot;/g, '"')
+                                 .replace(/&#x27;/g, "'")
+                                 .replace(/&nbsp;/g, ' ')
+                                 .replace(/\s+/g, ' ')
+                                 .trim();
+                        
+                        if (bio.length > 50 && bio.length < 2000) {
+                            result.bio = bio;
+                            log(`IMDB: Found bio (${bio.length} chars)`);
+                            break;
+                        }
+                    }
+                }
+                
+                // Also try to get bio from the /bio page if not found
+                if (!result.bio) {
+                    try {
+                        const bioUrl = `https://www.imdb.com${profilePath}/bio/`;
+                        log(`IMDB: Checking bio page for biography...`);
+                        const bioHtml = await fetchViaProxy(bioUrl);
+                        
+                        // Look for mini bio section
+                        const miniBioMatch = bioHtml.match(/Mini Bio[^<]*<\/h4>[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/i) ||
+                                            bioHtml.match(/<div[^>]*data-testid="sub-section"[^>]*>[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/i) ||
+                                            bioHtml.match(/<div[^>]*class="[^"]*soda[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+                        
+                        if (miniBioMatch && miniBioMatch[1]) {
+                            let bio = miniBioMatch[1]
+                                .replace(/<[^>]*>/g, ' ')
+                                .replace(/&amp;/g, '&')
+                                .replace(/&quot;/g, '"')
+                                .replace(/&#x27;/g, "'")
+                                .replace(/&nbsp;/g, ' ')
+                                .replace(/\s+/g, ' ')
+                                .trim();
+                            
+                            if (bio.length > 50) {
+                                result.bio = bio.substring(0, 1500); // Cap at reasonable length
+                                log(`IMDB: Found bio from bio page (${result.bio.length} chars)`);
+                            }
+                        }
+                    } catch (e) {
+                        log(`IMDB: Bio page fetch failed: ${e.message}`);
                     }
                 }
 
@@ -2962,6 +3031,62 @@
                 // - Usually have portrait crop ratios like CR13,0,140,207 or UY207
                 // - Movie posters have different crops like CR22,0,90,133
                 
+                // Extract bio from profile page
+                const bioPatterns = [
+                    // Mini bio section
+                    /data-testid="mini-bio"[^>]*>([^<]+)/i,
+                    // Bio text in various containers
+                    /<div[^>]*class="[^"]*inline[^"]*"[^>]*data-testid="bio-content"[^>]*>([^<]+)/i,
+                    // Overview section
+                    /class="[^"]*ipc-overviewCard[^"]*"[^>]*>.*?<div[^>]*>([^<]{50,})/is,
+                    // Known for description
+                    /"description"\s*:\s*"([^"]{50,})"/i,
+                    // Any substantial text near "bio"
+                    /bio[^>]*>([^<]{100,})</i
+                ];
+                
+                for (const pattern of bioPatterns) {
+                    const bioMatch = profileHtml.match(pattern);
+                    if (bioMatch && bioMatch[1]) {
+                        const bioText = stripHtml(bioMatch[1]).trim();
+                        if (bioText.length > 50 && !bioText.includes('{') && !bioText.includes('function')) {
+                            result.bio = bioText.substring(0, 1000);
+                            log(`IMDB: Found bio (${result.bio.length} chars)`);
+                            break;
+                        }
+                    }
+                }
+                
+                // Also try to fetch the bio page for more complete bio
+                if (!result.bio || result.bio.length < 200) {
+                    try {
+                        const bioUrl = `https://www.imdb.com${profilePath}/bio/`;
+                        log(`IMDB: Fetching bio page...`);
+                        const bioHtml = await fetchViaProxy(bioUrl);
+                        
+                        // Look for mini bio or biography text
+                        const bioPatternsPage = [
+                            /<div[^>]*data-testid="sub-section-mini_bio"[^>]*>[\s\S]*?<div[^>]*class="[^"]*ipc-html-content[^"]*"[^>]*>([^<]+(?:<[^>]+>[^<]*)*)/i,
+                            /Mini Bio[^<]*<\/h[^>]*>[\s\S]*?<p[^>]*>([^<]+)/i,
+                            /<p[^>]*class="[^"]*ipc-html-content[^"]*"[^>]*>([^<]+)/i
+                        ];
+                        
+                        for (const pattern of bioPatternsPage) {
+                            const match = bioHtml.match(pattern);
+                            if (match && match[1]) {
+                                const bioText = stripHtml(match[1]).trim();
+                                if (bioText.length > 100) {
+                                    result.bio = bioText.substring(0, 1000);
+                                    log(`IMDB: Found bio from bio page (${result.bio.length} chars)`);
+                                    break;
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        log(`IMDB: Bio page fetch failed: ${e.message}`);
+                    }
+                }
+
                 // First, look for images that appear to be headshots (portrait crops)
                 // Portrait aspect ratio for headshots is usually ~140x207 or similar
                 const headshotPatterns = [
@@ -3043,12 +3168,12 @@
                     }
                 }
                 
-                if (result.images.length > 0) {
-                    log(`IMDB: Returning ${result.images.length} images`);
+                if (result.images.length > 0 || result.bio) {
+                    log(`IMDB: Returning ${result.images.length} images, bio: ${result.bio ? result.bio.length + ' chars' : 'none'}`);
                     return result;
                 }
 
-                log('IMDB: No suitable headshot found', 'error');
+                log('IMDB: No images or bio found', 'error');
                 return null;
 
             } catch (error) {
