@@ -1237,7 +1237,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.9.5</span>
+            <span class="version-badge">v1.9.6</span>
         </header>
 
         <div class="search-container">
@@ -4498,42 +4498,7 @@
                 const genres = currentData.genres?.join(', ') || '';
                 const books = currentData.books?.slice(0, 10).join(', ') || '';
                 
-                // Randomize the style slightly
-                const styles = [
-                    'conversational and warm',
-                    'professional yet personable', 
-                    'engaging and descriptive',
-                    'concise and informative'
-                ];
-                const randomStyle = styles[Math.floor(Math.random() * styles.length)];
-                
-                const openings = [
-                    'Start with what makes them unique.',
-                    'Lead with their most notable achievement or characteristic.',
-                    'Begin by setting the scene of their career.',
-                    'Open with their signature style or specialty.'
-                ];
-                const randomOpening = openings[Math.floor(Math.random() * openings.length)];
-                
-                const prompt = `Create a unique biography for audiobook narrator "${currentData.name}".
-
-SOURCE MATERIAL:
-${existingBios || 'Limited information available.'}
-${awards ? `Awards: ${awards}` : ''}
-${genres ? `Genres: ${genres}` : ''}
-${books ? `Notable audiobooks: ${books}` : ''}
-
-WRITING GUIDELINES:
-- Tone: ${randomStyle}
-- ${randomOpening}
-- Vary sentence length and structure naturally
-- 100-200 words, 1-2 paragraphs
-- Only include facts from the source material above
-- Don't use cliché phrases like "brings characters to life" or "captivates listeners"
-- Avoid starting with their full name - use pronouns or creative alternatives
-- No bullet points or lists
-
-Write the bio now:`;
+                const prompt = `"${currentData.name}" narrator bio approximately 4 sentences.`;
 
                 // Use Netlify serverless function (API key hidden on server)
                 const response = await fetch('/api/gemini', {
