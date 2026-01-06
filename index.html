@@ -1237,7 +1237,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.8.9</span>
+            <span class="version-badge">v1.9.0</span>
         </header>
 
         <div class="search-container">
@@ -2892,13 +2892,46 @@
                 // IMDB modern pages use JSON-LD and various data attributes
                 log(`IMDB: Looking for bio in profile page...`);
                 
+                // Helper function to clean IMDB bio text
+                const cleanImdbBio = (bio, personName) => {
+                    if (!bio) return bio;
+                    
+                    let cleaned = bio
+                        .replace(/<[^>]*>/g, ' ')  // Remove HTML tags
+                        .replace(/&amp;/g, '&')
+                        .replace(/&quot;/g, '"')
+                        .replace(/&#x27;/g, "'")
+                        .replace(/&#39;/g, "'")
+                        .replace(/&nbsp;/g, ' ')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+                    
+                    // Remove "Name. Role: Title." prefix pattern
+                    // e.g., "Alan Kelly. Actor: The Penguin. Dublin born..."
+                    const prefixPattern = /^[^.]+\.\s*(?:Actor|Actress|Director|Writer|Producer|Voice)[^.]*\.\s*/i;
+                    cleaned = cleaned.replace(prefixPattern, '');
+                    
+                    // Also try removing just the name at the start
+                    if (personName) {
+                        const namePattern = new RegExp(`^${personName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[.,:]?\\s*`, 'i');
+                        cleaned = cleaned.replace(namePattern, '');
+                    }
+                    
+                    // Capitalize first letter after cleanup
+                    if (cleaned.length > 0) {
+                        cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+                    }
+                    
+                    return cleaned;
+                };
+                
                 // Try JSON-LD first - this is the most reliable on modern IMDB
                 const jsonLdMatch = profileHtml.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/i);
                 if (jsonLdMatch) {
                     try {
                         const jsonData = JSON.parse(jsonLdMatch[1]);
                         if (jsonData.description && jsonData.description.length > 50) {
-                            result.bio = jsonData.description;
+                            result.bio = cleanImdbBio(jsonData.description, result.name || name);
                             log(`IMDB: Found bio from JSON-LD (${result.bio.length} chars)`);
                         }
                     } catch (e) {
@@ -2921,16 +2954,7 @@
                     for (const pattern of bioPatterns) {
                         const match = profileHtml.match(pattern);
                         if (match && match[1]) {
-                            let bio = match[1].trim();
-                            // Clean up the bio
-                            bio = bio.replace(/<[^>]*>/g, ' ')  // Remove HTML tags
-                                     .replace(/&amp;/g, '&')
-                                     .replace(/&quot;/g, '"')
-                                     .replace(/&#x27;/g, "'")
-                                     .replace(/&#39;/g, "'")
-                                     .replace(/&nbsp;/g, ' ')
-                                     .replace(/\s+/g, ' ')
-                                     .trim();
+                            let bio = cleanImdbBio(match[1], result.name || name);
                             
                             if (bio.length > 50 && bio.length < 2000) {
                                 result.bio = bio;
@@ -2955,7 +2979,7 @@
                             try {
                                 const jsonData = JSON.parse(bioJsonMatch[1]);
                                 if (jsonData.description && jsonData.description.length > 50) {
-                                    result.bio = jsonData.description;
+                                    result.bio = cleanImdbBio(jsonData.description, result.name || name);
                                     log(`IMDB: Found bio from bio page JSON-LD (${result.bio.length} chars)`);
                                 }
                             } catch (e) {}
@@ -2973,15 +2997,7 @@
                             for (const pattern of bioPagePatterns) {
                                 const match = bioHtml.match(pattern);
                                 if (match && match[1]) {
-                                    let bio = match[1]
-                                        .replace(/<[^>]*>/g, ' ')
-                                        .replace(/&amp;/g, '&')
-                                        .replace(/&quot;/g, '"')
-                                        .replace(/&#x27;/g, "'")
-                                        .replace(/&#39;/g, "'")
-                                        .replace(/&nbsp;/g, ' ')
-                                        .replace(/\s+/g, ' ')
-                                        .trim();
+                                    let bio = cleanImdbBio(match[1], result.name || name);
                                     
                                     if (bio.length > 50) {
                                         result.bio = bio.substring(0, 1500);
