@@ -1237,7 +1237,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.8.3</span>
+            <span class="version-badge">v1.8.4</span>
         </header>
 
         <div class="search-container">
@@ -1880,11 +1880,26 @@
                         url: data.content_urls?.desktop?.page || url,
                         name: data.title,
                         bio: data.extract,
-                        imageUrl: data.thumbnail?.source?.replace('/50px-', '/300px-') || 
-                                  data.originalimage?.source
+                        imageUrl: null,
+                        images: []
                     };
+                    
+                    // Collect multiple image sizes from Wikipedia
+                    if (data.originalimage?.source) {
+                        result.images.push(data.originalimage.source);
+                        result.imageUrl = data.originalimage.source;
+                    }
+                    if (data.thumbnail?.source) {
+                        // Get larger versions
+                        const thumb = data.thumbnail.source;
+                        const large = thumb.replace(/\/\d+px-/, '/400px-');
+                        const medium = thumb.replace(/\/\d+px-/, '/300px-');
+                        if (!result.images.includes(large)) result.images.push(large);
+                        if (!result.images.includes(medium)) result.images.push(medium);
+                        if (!result.imageUrl) result.imageUrl = large;
+                    }
 
-                    log(`Wikipedia: Found! "${data.title}" - Bio: ${result.bio?.length || 0} chars`);
+                    log(`Wikipedia: Found! "${data.title}" - Bio: ${result.bio?.length || 0} chars, Images: ${result.images.length}`);
                     return result;
 
                 } catch (error) {
@@ -2559,8 +2574,12 @@
                         url: url,
                         name: name,
                         imageUrl: null,
+                        images: [],
                         bio: null
                     };
+                    
+                    const foundImages = new Set();
+                    const maxImages = 5;
                     
                     // Look for ANY jpg/png image that's likely a profile photo
                     const imgPatterns = [
@@ -2575,8 +2594,12 @@
                     ];
                     
                     for (const pattern of imgPatterns) {
+                        if (result.images.length >= maxImages) break;
+                        
                         const matches = html.matchAll(pattern);
                         for (const match of matches) {
+                            if (result.images.length >= maxImages) break;
+                            
                             let imgUrl = match[1];
                             if (!imgUrl) continue;
                             
@@ -2594,11 +2617,20 @@
                             if (!imgUrl.startsWith('http')) {
                                 imgUrl = new URL(imgUrl, url).href;
                             }
-                            result.imageUrl = imgUrl;
-                            log(`Personal Site: Found image: ${imgUrl.substring(0, 60)}...`);
-                            break;
+                            
+                            if (!foundImages.has(imgUrl)) {
+                                foundImages.add(imgUrl);
+                                result.images.push(imgUrl);
+                                if (!result.imageUrl) {
+                                    result.imageUrl = imgUrl;
+                                    log(`Personal Site: Found image: ${imgUrl.substring(0, 60)}...`);
+                                }
+                            }
                         }
-                        if (result.imageUrl) break;
+                    }
+                    
+                    if (result.images.length > 1) {
+                        log(`Personal Site: Found ${result.images.length} images total`);
                     }
                     
                     // Look for bio/about text on homepage
@@ -3018,11 +3050,17 @@
                 const result = {
                     source: 'google',
                     url: `https://www.google.com/search?q=${encodeURIComponent(searchQueries[0])}`,
-                    imageUrl: null
+                    imageUrl: null,
+                    images: []
                 };
+                
+                const foundImages = new Set();
+                const maxImages = 5; // Collect up to 5 images
                 
                 // Try each search query
                 for (const searchQuery of searchQueries) {
+                    if (result.images.length >= maxImages) break;
+                    
                     // Try Google Images
                     const imageSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}&tbm=isch`;
                     
@@ -3041,8 +3079,12 @@
                         ];
                         
                         for (const pattern of patterns) {
+                            if (result.images.length >= maxImages) break;
+                            
                             const matches = html.matchAll(pattern);
                             for (const match of matches) {
+                                if (result.images.length >= maxImages) break;
+                                
                                 const imgUrl = match[1];
                                 // Skip Google's own assets and tiny images
                                 if (!imgUrl.includes('google.com') && 
@@ -3053,10 +3095,12 @@
                                     !imgUrl.includes('button') &&
                                     !imgUrl.includes('1x1') &&
                                     !imgUrl.includes('placeholder') &&
-                                    imgUrl.length > 50) {
-                                    result.imageUrl = imgUrl;
-                                    log(`Google: Found image from "${searchQuery}"`);
-                                    return result;
+                                    imgUrl.length > 50 &&
+                                    !foundImages.has(imgUrl)) {
+                                    foundImages.add(imgUrl);
+                                    result.images.push(imgUrl);
+                                    if (!result.imageUrl) result.imageUrl = imgUrl;
+                                    log(`Google: Found image ${result.images.length}`);
                                 }
                             }
                         }
@@ -3065,29 +3109,37 @@
                     }
                 }
                 
-                // Try DuckDuckGo as fallback
-                try {
-                    const ddgUrl = `https://duckduckgo.com/?q=${encodeURIComponent(name + ' narrator')}&iax=images&ia=images`;
-                    const ddgHtml = await fetchViaProxy(ddgUrl);
-                    
-                    // DuckDuckGo image patterns
-                    const ddgPatterns = [
-                        /"image":"(https:\/\/[^"]+\.(?:jpg|jpeg|png)[^"]*)"/gi,
-                        /vqd=([^&]+)/
-                    ];
-                    
-                    for (const pattern of ddgPatterns) {
-                        const match = ddgHtml.match(pattern);
-                        if (match && match[1] && match[1].startsWith('http')) {
-                            result.imageUrl = match[1];
-                            log(`Google: Found image via DuckDuckGo`);
-                            return result;
+                // Try DuckDuckGo as fallback if no images found
+                if (result.images.length === 0) {
+                    try {
+                        const ddgUrl = `https://duckduckgo.com/?q=${encodeURIComponent(name + ' narrator')}&iax=images&ia=images`;
+                        const ddgHtml = await fetchViaProxy(ddgUrl);
+                        
+                        // DuckDuckGo image patterns
+                        const ddgPatterns = [
+                            /"image":"(https:\/\/[^"]+\.(?:jpg|jpeg|png)[^"]*)"/gi,
+                            /vqd=([^&]+)/
+                        ];
+                        
+                        for (const pattern of ddgPatterns) {
+                            const match = ddgHtml.match(pattern);
+                            if (match && match[1] && match[1].startsWith('http')) {
+                                result.imageUrl = match[1];
+                                result.images.push(match[1]);
+                                log(`Google: Found image via DuckDuckGo`);
+                                break;
+                            }
                         }
+                    } catch (e) {
+                        log(`DuckDuckGo fallback failed: ${e.message}`);
                     }
-                } catch (e) {
-                    log(`DuckDuckGo fallback failed: ${e.message}`);
                 }
 
+                if (result.images.length > 0) {
+                    log(`Google: Found ${result.images.length} images`);
+                    return result;
+                }
+                
                 log('Google: No image found', 'error');
                 return null;
 
@@ -3307,13 +3359,31 @@
             for (const result of results.filter(r => r !== null)) {
                 merged.sources.push({ name: result.source, url: result.url });
 
-                // Collect image with score and source
+                // Collect images with score and source (support both single imageUrl and array of images)
+                const imagesToProcess = [];
+                
+                // Handle single imageUrl (backwards compatibility)
                 if (result.imageUrl) {
-                    const score = scoreImage(result.imageUrl, result.source);
+                    imagesToProcess.push(result.imageUrl);
+                }
+                
+                // Handle array of images
+                if (result.images && Array.isArray(result.images)) {
+                    imagesToProcess.push(...result.images);
+                }
+                
+                // Process all images from this source
+                for (const imgUrl of imagesToProcess) {
+                    if (!imgUrl) continue;
+                    
+                    // Check for duplicates
+                    if (merged.images.some(i => i.url === imgUrl)) continue;
+                    
+                    const score = scoreImage(imgUrl, result.source);
                     // Only include images with positive scores (negative = blocked)
                     if (score > 0) {
                         merged.images.push({ 
-                            url: result.imageUrl, 
+                            url: imgUrl, 
                             source: result.source, 
                             score,
                             sourceUrl: result.url 
