@@ -4511,20 +4511,14 @@
                 ];
                 const randomOpening = openings[Math.floor(Math.random() * openings.length)];
                 
-                const prompt = `Create a unique biography for audiobook narrator "${currentData.name}".
+                const prompt = `"${currentData.name}" narrator bio sentences only.
 
-SOURCE MATERIAL:
-${existingBios || 'Limited information available.'}
-${awards ? `Awards: ${awards}` : ''}
-${genres ? `Genres: ${genres}` : ''}
-${books ? `Notable audiobooks: ${books}` : ''}
 
 WRITING GUIDELINES:
 - Tone: ${randomStyle}
 - ${randomOpening}
 - Vary sentence length and structure naturally
 - 100-200 words, 1-2 paragraphs
-- Only include facts from the source material above
 - Don't use cliché phrases like "brings characters to life" or "captivates listeners"
 - Avoid starting with their full name - use pronouns or creative alternatives
 - No bullet points or lists
