@@ -1205,7 +1205,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.7.1</span>
+            <span class="version-badge">v1.7.2</span>
         </header>
 
         <div class="search-container">
@@ -3293,6 +3293,7 @@
             searchBtn.disabled = true;
 
             log(`Starting search for "${narratorName}"`);
+            log(`skipDatabaseCheck = ${skipDatabaseCheck}`);
 
             // Check if narrator exists in database first (unless skipping for change request)
             if (!skipDatabaseCheck) {
