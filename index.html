@@ -1205,7 +1205,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.6.6</span>
+            <span class="version-badge">v1.6.7</span>
         </header>
 
         <div class="search-container">
@@ -2386,18 +2386,29 @@
                     
                     log(`SoundCloud: Response length: ${html.length}`);
 
-                    // Check if profile exists
-                    if (html.includes("We can't find that user") || 
+                    // Check if profile exists - SoundCloud error pages are typically shorter
+                    // and contain specific error messages
+                    const isErrorPage = html.includes("We can't find that user") || 
                         html.includes('Something went wrong') ||
-                        html.includes('404') ||
-                        html.length < 1000) {
+                        html.includes('This user has been suspended') ||
+                        html.includes('Page not found') ||
+                        html.length < 1000;
+                    
+                    if (isErrorPage) {
                         log(`SoundCloud: Profile not found at ${username}`);
                         continue; // Try next variant
                     }
                     
-                    // Check if this looks like a valid SoundCloud page
-                    if (!html.includes('soundcloud') && !html.includes('sndcdn')) {
-                        log(`SoundCloud: Invalid response for ${username}`);
+                    // Check if this looks like a valid SoundCloud page with actual content
+                    const hasSoundCloudContent = html.includes('sndcdn.com') || 
+                                                  html.includes('soundcloud.com') ||
+                                                  html.includes('sc-classic');
+                    
+                    // Look for avatar image first - this is the best indicator of a real profile
+                    const hasAvatar = html.includes('avatars-') || html.includes('avatar_url');
+                    
+                    if (!hasSoundCloudContent && !hasAvatar) {
+                        log(`SoundCloud: No SoundCloud content at ${username}`);
                         continue;
                     }
                     
@@ -2561,7 +2572,7 @@
                     
                     for (const pattern of bioPatterns) {
                         const match = html.match(pattern);
-                        if (match) {
+                        if (match && match[1]) {
                             result.bio = stripHtml(match[1]).trim();
                             log(`Personal Site: Found bio (${result.bio.length} chars)`);
                             break;
