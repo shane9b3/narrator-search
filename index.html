@@ -6,9 +6,10 @@
     <title>The LitLyric Narrator Project</title>
     
     <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-storage-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-vertexai-compat.js"></script>
     
     <style>
         * {
@@ -1237,7 +1238,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.9.6</span>
+            <span class="version-badge">v1.9.7</span>
         </header>
 
         <div class="search-container">
@@ -4492,42 +4493,17 @@
             log('Starting AI bio generation...', 'info');
             
             try {
-                // Gather all available information about the narrator
-                const existingBios = currentData.bios.map(b => `[${b.source}]: ${b.text}`).join('\n\n');
-                const awards = currentData.awards?.join(', ') || '';
-                const genres = currentData.genres?.join(', ') || '';
-                const books = currentData.books?.slice(0, 10).join(', ') || '';
-                
                 const prompt = `"${currentData.name}" narrator bio approximately 4 sentences.`;
 
-                // Use Netlify serverless function (API key hidden on server)
-                const response = await fetch('/api/gemini', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        contents: [{
-                            parts: [{ text: prompt }]
-                        }],
-                        generationConfig: {
-                            temperature: 0.9,
-                            maxOutputTokens: 400
-                        }
-                    })
-                });
+                // Use Firebase Vertex AI
+                const vertexAI = firebase.vertexAI();
+                const model = vertexAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
                 
-                const data = await response.json();
-                
-                if (!response.ok) {
-                    log(`AI API error: ${response.status} - ${JSON.stringify(data)}`, 'error');
-                    throw new Error(`AI API failed: ${data.error?.message || response.status}`);
-                }
-                
-                const generatedBio = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+                const result = await model.generateContent(prompt);
+                const response = result.response;
+                const generatedBio = response.text()?.trim();
                 
                 if (!generatedBio) {
-                    log(`AI response structure: ${JSON.stringify(data).substring(0, 200)}`, 'error');
                     throw new Error('No bio generated');
                 }
                 
