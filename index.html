@@ -1205,7 +1205,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.6.1</span>
+            <span class="version-badge">v1.6.2</span>
         </header>
 
         <div class="search-container">
@@ -1804,58 +1804,32 @@
                                        bio.includes('voice artist');
                     
                     const isActor = bio.includes('actor') || bio.includes('actress');
+                    const isAuthor = bio.includes('author') || bio.includes('writer');
                     
-                    // Expanded list of non-narrator occupations to filter out
-                    const isDefinitelyNotNarrator = 
+                    // Accept if they're an actor, narrator, or author (many authors narrate their own books)
+                    const isLikelyNarrator = isNarrator || isActor || isAuthor;
+                    
+                    // Only filter out people who are DEFINITELY not narrators
+                    const isDefinitelyNotNarrator = !isLikelyNarrator && (
                         // Sports
-                        bio.includes('football') ||
-                        bio.includes('basketball') ||
-                        bio.includes('baseball') ||
-                        bio.includes('soccer') ||
-                        bio.includes('hockey') ||
-                        bio.includes('rugby') ||
-                        bio.includes('cricket') ||
-                        bio.includes('tennis') ||
-                        bio.includes('golf') ||
-                        bio.includes('boxer') ||
-                        bio.includes('wrestling') ||
-                        bio.includes('athlete') ||
-                        bio.includes('sports') ||
-                        bio.includes('olympics') ||
-                        bio.includes('nfl') ||
-                        bio.includes('nba') ||
-                        bio.includes('mlb') ||
-                        bio.includes('nhl') ||
-                        bio.includes('league') ||
+                        bio.includes('football player') ||
+                        bio.includes('basketball player') ||
+                        bio.includes('baseball player') ||
+                        bio.includes('soccer player') ||
+                        bio.includes('hockey player') ||
+                        bio.includes('professional athlete') ||
                         // Politics
                         bio.includes('politician') ||
                         bio.includes('senator') ||
                         bio.includes('congressman') ||
-                        bio.includes('representative') ||
                         bio.includes('governor') ||
-                        bio.includes('mayor') ||
-                        bio.includes('minister') ||
-                        bio.includes('parliament') ||
-                        // Other professions that are clearly not narrators
-                        bio.includes('scientist') ||
-                        bio.includes('physicist') ||
-                        bio.includes('biologist') ||
-                        bio.includes('chemist') ||
-                        bio.includes('mathematician') ||
-                        bio.includes('engineer') ||
-                        bio.includes('businessman') ||
-                        bio.includes('ceo') ||
-                        bio.includes('entrepreneur') ||
-                        bio.includes('military') ||
-                        bio.includes('general') ||
-                        bio.includes('admiral') ||
-                        bio.includes('soldier') ||
-                        bio.includes('criminal') ||
-                        bio.includes('murderer') ||
-                        bio.includes('serial killer');
+                        // Other clearly non-narrator professions
+                        bio.includes('serial killer') ||
+                        bio.includes('murderer')
+                    );
                     
-                    if (isDefinitelyNotNarrator && !isNarrator) {
-                        log(`Wikipedia: Found "${data.title}" but appears to be wrong person (not a narrator), trying next variant...`);
+                    if (isDefinitelyNotNarrator) {
+                        log(`Wikipedia: Found "${data.title}" but appears to be wrong person, trying next variant...`);
                         continue; // Try next variant
                     }
 
@@ -1867,12 +1841,6 @@
                         imageUrl: data.thumbnail?.source?.replace('/50px-', '/300px-') || 
                                   data.originalimage?.source
                     };
-
-                    // Only include results we're confident about
-                    if (!isNarrator && !isActor) {
-                        log(`Wikipedia: Found "${data.title}" but not confirmed as narrator/actor, skipping`);
-                        continue; // Skip entirely if we can't confirm they're in entertainment
-                    }
 
                     log(`Wikipedia: Found! "${data.title}" - Bio: ${result.bio?.length || 0} chars`);
                     return result;
@@ -3100,12 +3068,12 @@
             ).join('');
 
             try {
-                // Core sources (always search these)
+                // Core sources (always search these) - increased timeouts
                 const coreSearches = [
                     (async () => {
                         updateSourceStatus('audible', 'searching');
                         try {
-                            const r = await fetchWithTimeout(searchAudible(narratorName), 10000);
+                            const r = await fetchWithTimeout(searchAudible(narratorName), 20000);
                             updateSourceStatus('audible', r ? 'found' : 'not-found');
                             return r;
                         } catch (e) {
@@ -3117,7 +3085,7 @@
                     (async () => {
                         updateSourceStatus('wikipedia', 'searching');
                         try {
-                            const r = await fetchWithTimeout(searchWikipedia(narratorName), 8000);
+                            const r = await fetchWithTimeout(searchWikipedia(narratorName), 15000);
                             updateSourceStatus('wikipedia', r ? 'found' : 'not-found');
                             return r;
                         } catch (e) {
@@ -3129,7 +3097,7 @@
                     (async () => {
                         updateSourceStatus('audiofile', 'searching');
                         try {
-                            const r = await fetchWithTimeout(searchAudioFile(narratorName), 8000);
+                            const r = await fetchWithTimeout(searchAudioFile(narratorName), 20000);
                             updateSourceStatus('audiofile', r ? 'found' : 'not-found');
                             return r;
                         } catch (e) {
@@ -3141,7 +3109,7 @@
                     (async () => {
                         updateSourceStatus('tantor', 'searching');
                         try {
-                            const r = await fetchWithTimeout(searchTantor(narratorName), 8000);
+                            const r = await fetchWithTimeout(searchTantor(narratorName), 15000);
                             updateSourceStatus('tantor', r ? 'found' : 'not-found');
                             return r;
                         } catch (e) {
@@ -3153,7 +3121,7 @@
                     (async () => {
                         updateSourceStatus('imdb', 'searching');
                         try {
-                            const r = await fetchWithTimeout(searchIMDB(narratorName), 10000);
+                            const r = await fetchWithTimeout(searchIMDB(narratorName), 20000);
                             updateSourceStatus('imdb', r?.imageUrl ? 'found' : 'not-found');
                             return r;
                         } catch (e) {
@@ -3169,7 +3137,7 @@
                     (async () => {
                         updateSourceStatus('voicestoknow', 'searching');
                         try {
-                            const r = await fetchWithTimeout(searchVoicesToKnow(narratorName), 8000);
+                            const r = await fetchWithTimeout(searchVoicesToKnow(narratorName), 15000);
                             updateSourceStatus('voicestoknow', r ? 'found' : 'not-found');
                             return r;
                         } catch (e) {
@@ -3180,7 +3148,7 @@
                     (async () => {
                         updateSourceStatus('soundbooth', 'searching');
                         try {
-                            const r = await fetchWithTimeout(searchSoundbooth(narratorName), 8000);
+                            const r = await fetchWithTimeout(searchSoundbooth(narratorName), 15000);
                             updateSourceStatus('soundbooth', r ? 'found' : 'not-found');
                             return r;
                         } catch (e) {
@@ -3191,7 +3159,7 @@
                     (async () => {
                         updateSourceStatus('soundcloud', 'searching');
                         try {
-                            const r = await fetchWithTimeout(searchSoundCloud(narratorName), 8000);
+                            const r = await fetchWithTimeout(searchSoundCloud(narratorName), 15000);
                             updateSourceStatus('soundcloud', r ? 'found' : 'not-found');
                             return r;
                         } catch (e) {
@@ -3218,7 +3186,7 @@
                     log('No image found, trying Google...', 'info');
                     updateSourceStatus('google', 'searching');
                     try {
-                        const googleResult = await fetchWithTimeout(searchGoogle(narratorName), 8000);
+                        const googleResult = await fetchWithTimeout(searchGoogle(narratorName), 20000);
                         updateSourceStatus('google', googleResult ? 'found' : 'not-found');
                         if (googleResult) {
                             results.push(googleResult);
