@@ -1205,7 +1205,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.7.2</span>
+            <span class="version-badge">v1.7.3</span>
         </header>
 
         <div class="search-container">
@@ -2589,9 +2589,15 @@
                                 log(`Personal Site: Checking about page ${aboutUrl}`);
                                 const aboutHtml = await fetchViaProxy(aboutUrl);
                                 
+                                // Better 404 detection
                                 if (aboutHtml.length < 1000 || 
                                     aboutHtml.includes('Page Not Found') ||
-                                    aboutHtml.includes('404 Not Found')) {
+                                    aboutHtml.includes('page you were looking for') ||
+                                    aboutHtml.includes("couldn't find the page") ||
+                                    aboutHtml.includes("can't find the page") ||
+                                    aboutHtml.includes('404 Not Found') ||
+                                    aboutHtml.includes('Error 404')) {
+                                    log(`Personal Site: ${aboutPath} appears to be a 404 page, skipping`);
                                     continue;
                                 }
                                 
@@ -2603,14 +2609,24 @@
                                 const paragraphs = [];
                                 for (const match of paragraphMatches) {
                                     const text = stripHtml(match[1]).trim();
-                                    // Skip navigation, footer text, etc.
+                                    // Skip navigation, footer text, CSS, JS, and error messages
                                     if (text.length > 50 && 
                                         !text.toLowerCase().includes('cookie') && 
                                         !text.toLowerCase().includes('privacy policy') &&
                                         !text.toLowerCase().includes('copyright') &&
                                         !text.includes('©') &&
                                         !text.toLowerCase().includes('subscribe') &&
-                                        !text.toLowerCase().includes('sign up')) {
+                                        !text.toLowerCase().includes('sign up') &&
+                                        !text.includes('@supports') &&
+                                        !text.includes('@media') &&
+                                        !text.includes('backdrop-filter') &&
+                                        !text.includes('{') &&
+                                        !text.includes('}') &&
+                                        !text.toLowerCase().includes('skip to content') &&
+                                        !text.toLowerCase().includes('open menu') &&
+                                        !text.toLowerCase().includes('close menu') &&
+                                        !text.toLowerCase().includes('page you were looking for') &&
+                                        !text.toLowerCase().includes("couldn't find")) {
                                         paragraphs.push(text);
                                         log(`Personal Site: Found paragraph (${text.length} chars): "${text.substring(0, 50)}..."`);
                                     }
