@@ -1237,7 +1237,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.8.5</span>
+            <span class="version-badge">v1.8.6</span>
         </header>
 
         <div class="search-container">
@@ -2757,8 +2757,11 @@
             log(`IMDB: Searching for ${name}`);
 
             try {
-                // Strategy 1: Try IMDB's suggestion API via proxy
-                // This returns JSON with person info including images
+                let profilePath = null;
+                let verifiedName = null;
+                let suggestionImage = null;
+                
+                // Strategy 1: Try IMDB's suggestion API to get profile ID
                 const firstLetter = name.charAt(0).toLowerCase();
                 const suggestionUrl = `https://v2.sg.media-imdb.com/suggestion/${firstLetter}/${encodeURIComponent(name.toLowerCase().replace(/\s+/g, '_'))}.json`;
                 
@@ -2794,8 +2797,6 @@
                         }
                         
                         if (bestMatch) {
-                            log(`IMDB: Found "${bestMatch.l}" via suggestion API`);
-                            
                             // Verify name matches
                             const foundNameLower = (bestMatch.l || '').toLowerCase();
                             const searchParts = name.toLowerCase().split(/\s+/);
@@ -2804,31 +2805,17 @@
                             const lastNameSearch = searchParts[searchParts.length - 1];
                             const lastNameFound = foundParts[foundParts.length - 1];
                             
-                            if (lastNameFound !== lastNameSearch) {
-                                log(`IMDB: Name mismatch - searched "${name}" but found "${bestMatch.l}"`, 'error');
-                                // Don't return, try fallback
-                            } else {
-                                const result = {
-                                    source: 'imdb',
-                                    url: `https://www.imdb.com/name/${bestMatch.id}/`,
-                                    name: bestMatch.l,
-                                    imageUrl: null
-                                };
+                            if (lastNameFound === lastNameSearch) {
+                                profilePath = `/name/${bestMatch.id}`;
+                                verifiedName = bestMatch.l;
+                                log(`IMDB: Found "${bestMatch.l}" via suggestion API (${bestMatch.id})`);
                                 
-                                // Get image from suggestion data
+                                // Save suggestion image as fallback
                                 if (bestMatch.i && bestMatch.i.imageUrl) {
-                                    // Upgrade image size - replace dimensions in URL
-                                    let imgUrl = bestMatch.i.imageUrl;
-                                    // IMDB images have size params like UX140 or UY209
-                                    // Replace with larger size
-                                    imgUrl = imgUrl.replace(/U[XY]\d+/g, 'UX400');
-                                    result.imageUrl = imgUrl;
-                                    log(`IMDB: Found headshot via suggestion API`);
+                                    suggestionImage = bestMatch.i.imageUrl.replace(/U[XY]\d+/g, 'UX400');
                                 }
-                                
-                                if (result.imageUrl) {
-                                    return result;
-                                }
+                            } else {
+                                log(`IMDB: Name mismatch - searched "${name}" but found "${bestMatch.l}"`, 'warning');
                             }
                         }
                     }
@@ -2836,41 +2823,40 @@
                     log(`IMDB: Suggestion API failed: ${e.message}`, 'warning');
                 }
                 
-                // Strategy 2: Fallback to regular search via proxy
-                const searchUrl = `https://www.imdb.com/find/?q=${encodeURIComponent(name)}&s=nm`;
-                const html = await fetchViaProxy(searchUrl);
-                
-                log(`IMDB: Search page fetched, length: ${html.length}`);
+                // Strategy 2: If no profile from suggestion, try regular search
+                if (!profilePath) {
+                    const searchUrl = `https://www.imdb.com/find/?q=${encodeURIComponent(name)}&s=nm`;
+                    const html = await fetchViaProxy(searchUrl);
+                    
+                    log(`IMDB: Search page fetched, length: ${html.length}`);
 
-                // Try multiple patterns to find the profile URL
-                let profilePath = null;
-                
-                // Pattern 1: Standard href to /name/nmXXXXXX
-                const patterns = [
-                    /href="(\/name\/nm\d+)\/?"/i,
-                    /href='(\/name\/nm\d+)\/?'/i,
-                    /\/name\/(nm\d+)/i,
-                    /"(nm\d+)"/
-                ];
-                
-                for (const pattern of patterns) {
-                    const match = html.match(pattern);
-                    if (match) {
-                        profilePath = match[1].startsWith('/') ? match[1] : `/name/${match[1]}`;
-                        log(`IMDB: Found profile path with pattern: ${profilePath}`);
-                        break;
+                    // Try multiple patterns to find the profile URL
+                    const patterns = [
+                        /href="(\/name\/nm\d+)\/?"/i,
+                        /href='(\/name\/nm\d+)\/?'/i,
+                        /\/name\/(nm\d+)/i,
+                        /"(nm\d+)"/
+                    ];
+                    
+                    for (const pattern of patterns) {
+                        const match = html.match(pattern);
+                        if (match) {
+                            profilePath = match[1].startsWith('/') ? match[1] : `/name/${match[1]}`;
+                            log(`IMDB: Found profile path with pattern: ${profilePath}`);
+                            break;
+                        }
                     }
                 }
                 
                 if (!profilePath) {
-                    log('IMDB: No profile found in search results', 'error');
+                    log('IMDB: No profile found', 'error');
                     return null;
                 }
 
                 const profileUrl = `https://www.imdb.com${profilePath}/`;
-                log(`IMDB: Fetching profile: ${profileUrl}`);
+                log(`IMDB: Fetching profile page: ${profileUrl}`);
 
-                // Fetch the actual profile page to get the real headshot
+                // Fetch the actual profile page to get multiple images
                 const profileHtml = await fetchViaProxy(profileUrl);
                 log(`IMDB: Profile page fetched, length: ${profileHtml.length}`);
 
@@ -2879,84 +2865,95 @@
                     url: profileUrl,
                     imageUrl: null,
                     images: [],
-                    name: null
+                    name: verifiedName || null
                 };
                 
                 const foundImages = new Set();
                 const maxImages = 8;
-
-                // Extract name from profile
-                const titleMatch = profileHtml.match(/<title>([^|<]+)/i);
-                if (titleMatch) {
-                    result.name = titleMatch[1].replace(' - IMDb', '').trim();
-                    log(`IMDB: Found name: ${result.name}`);
+                
+                // Add suggestion image first if we have it
+                if (suggestionImage) {
+                    foundImages.add(suggestionImage);
+                    result.images.push(suggestionImage);
+                    result.imageUrl = suggestionImage;
                 }
 
-                // IMPORTANT: Verify this is the right person!
-                // Compare the found name with what we searched for
-                const searchNameLower = name.toLowerCase().replace(/[^a-z]/g, '');
-                const foundNameLower = (result.name || '').toLowerCase().replace(/[^a-z]/g, '');
-                
-                // Check if names are similar enough
-                const searchParts = name.toLowerCase().split(/\s+/).filter(p => p.length > 0);
-                const foundParts = (result.name || '').toLowerCase().split(/[\s.]+/).filter(p => p.length > 0);
-                
-                // At least the last name should match, or significant overlap
-                const lastNameSearch = searchParts[searchParts.length - 1];
-                const lastNameFound = foundParts[foundParts.length - 1];
-                
-                const firstNameSearch = searchParts[0];
-                const firstNameFound = foundParts[0];
-                
-                const lastNameMatches = lastNameFound && lastNameSearch && 
-                    (lastNameFound === lastNameSearch || 
-                     lastNameFound.includes(lastNameSearch) || 
-                     lastNameSearch.includes(lastNameFound));
-                const firstNameMatches = firstNameFound && firstNameSearch &&
-                    (firstNameFound === firstNameSearch ||
-                     firstNameFound.includes(firstNameSearch) || 
-                     firstNameSearch.includes(firstNameFound) ||
-                     firstNameFound[0] === firstNameSearch[0]); // Initial match (R.C. vs RC)
-                
-                // If found name has more parts than search (like middle names), 
-                // be stricter - require exact first AND last name match
-                if (foundParts.length > searchParts.length) {
-                    const exactFirstMatch = firstNameFound === firstNameSearch || 
-                                           (firstNameSearch.length <= 3 && firstNameFound.startsWith(firstNameSearch));
-                    const exactLastMatch = lastNameFound === lastNameSearch;
-                    
-                    if (!exactFirstMatch || !exactLastMatch) {
-                        log(`IMDB: Name has extra parts - searched "${name}" but found "${result.name}" - might be different person, skipping`, 'error');
-                        return null;
+                // Extract name from profile if not already verified
+                if (!result.name) {
+                    const titleMatch = profileHtml.match(/<title>([^|<]+)/i);
+                    if (titleMatch) {
+                        result.name = titleMatch[1].replace(' - IMDb', '').trim();
+                        log(`IMDB: Found name: ${result.name}`);
                     }
                 }
-                
-                if (!lastNameMatches) {
-                    log(`IMDB: Name mismatch! Searched "${name}" but found "${result.name}" - skipping`, 'error');
-                    return null;
-                }
-                
-                if (!firstNameMatches && !lastNameMatches) {
-                    log(`IMDB: Name mismatch! Searched "${name}" but found "${result.name}" - skipping`, 'error');
-                    return null;
-                }
-                
-                log(`IMDB: Name verified - "${result.name}" matches search "${name}"`);
-                
-                // Additional check: Look for narrator/audiobook keywords on the profile page
-                // If the person's bio doesn't mention narrator/audiobook/voice, they might be the wrong person
-                const bioLower = html.toLowerCase();
-                const isNarratorOnIMDB = bioLower.includes('narrator') || 
-                                          bioLower.includes('audiobook') ||
-                                          bioLower.includes('voice actor') ||
-                                          bioLower.includes('voice-over') ||
-                                          bioLower.includes('voiceover');
-                
-                // If this person has a middle name/initial that we didn't search for,
-                // AND they're not clearly identified as a narrator on IMDB, skip them
-                if (foundParts.length > searchParts.length && !isNarratorOnIMDB) {
-                    log(`IMDB: "${result.name}" doesn't appear to be an audiobook narrator, skipping`, 'error');
-                    return null;
+
+                // Skip name verification if we already verified via suggestion API
+                if (!verifiedName) {
+                    // IMPORTANT: Verify this is the right person!
+                    // Compare the found name with what we searched for
+                    const searchNameLower = name.toLowerCase().replace(/[^a-z]/g, '');
+                    const foundNameLower = (result.name || '').toLowerCase().replace(/[^a-z]/g, '');
+                    
+                    // Check if names are similar enough
+                    const searchParts = name.toLowerCase().split(/\s+/).filter(p => p.length > 0);
+                    const foundParts = (result.name || '').toLowerCase().split(/[\s.]+/).filter(p => p.length > 0);
+                    
+                    // At least the last name should match, or significant overlap
+                    const lastNameSearch = searchParts[searchParts.length - 1];
+                    const lastNameFound = foundParts[foundParts.length - 1];
+                    
+                    const firstNameSearch = searchParts[0];
+                    const firstNameFound = foundParts[0];
+                    
+                    const lastNameMatches = lastNameFound && lastNameSearch && 
+                        (lastNameFound === lastNameSearch || 
+                         lastNameFound.includes(lastNameSearch) || 
+                         lastNameSearch.includes(lastNameFound));
+                    const firstNameMatches = firstNameFound && firstNameSearch &&
+                        (firstNameFound === firstNameSearch ||
+                         firstNameFound.includes(firstNameSearch) || 
+                         firstNameSearch.includes(firstNameFound) ||
+                         firstNameFound[0] === firstNameSearch[0]); // Initial match (R.C. vs RC)
+                    
+                    // If found name has more parts than search (like middle names), 
+                    // be stricter - require exact first AND last name match
+                    if (foundParts.length > searchParts.length) {
+                        const exactFirstMatch = firstNameFound === firstNameSearch || 
+                                               (firstNameSearch.length <= 3 && firstNameFound.startsWith(firstNameSearch));
+                        const exactLastMatch = lastNameFound === lastNameSearch;
+                        
+                        if (!exactFirstMatch || !exactLastMatch) {
+                            log(`IMDB: Name has extra parts - searched "${name}" but found "${result.name}" - might be different person, skipping`, 'error');
+                            return null;
+                        }
+                    }
+                    
+                    if (!lastNameMatches) {
+                        log(`IMDB: Name mismatch! Searched "${name}" but found "${result.name}" - skipping`, 'error');
+                        return null;
+                    }
+                    
+                    if (!firstNameMatches && !lastNameMatches) {
+                        log(`IMDB: Name mismatch! Searched "${name}" but found "${result.name}" - skipping`, 'error');
+                        return null;
+                    }
+                    
+                    log(`IMDB: Name verified - "${result.name}" matches search "${name}"`);
+                    
+                    // Additional check: Look for narrator/audiobook keywords on the profile page
+                    const bioLower = profileHtml.toLowerCase();
+                    const isNarratorOnIMDB = bioLower.includes('narrator') || 
+                                              bioLower.includes('audiobook') ||
+                                              bioLower.includes('voice actor') ||
+                                              bioLower.includes('voice-over') ||
+                                              bioLower.includes('voiceover');
+                    
+                    // If this person has a middle name/initial that we didn't search for,
+                    // AND they're not clearly identified as a narrator on IMDB, skip them
+                    if (foundParts.length > searchParts.length && !isNarratorOnIMDB) {
+                        log(`IMDB: "${result.name}" doesn't appear to be an audiobook narrator, skipping`, 'error');
+                        return null;
+                    }
                 }
 
                 // IMDB headshots are specifically in the profile header area
