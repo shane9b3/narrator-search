@@ -1198,7 +1198,7 @@
         <header>
             <h1>🎧 Narrator Lookup</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.5.2</span>
+            <span class="version-badge">v1.5.3</span>
         </header>
 
         <div class="search-container">
@@ -3757,20 +3757,11 @@
                 const existingDoc = await firestore.collection(COLLECTION_NAME).doc(docId).get();
                 
                 if (existingDoc.exists) {
-                    const existingData = existingDoc.data();
-                    const overwrite = confirm(
-                        `"${currentData.name}" already exists in the database!\n\n` +
-                        `Existing bio: ${existingData.bio?.substring(0, 100)}...\n\n` +
-                        `Do you want to overwrite it?`
-                    );
-                    
-                    if (!overwrite) {
-                        btn.classList.remove('uploading');
-                        btn.textContent = '🔥 Upload to Firebase';
-                        btn.disabled = false;
-                        showFirebaseStatus('Upload cancelled - narrator already exists', 'error');
-                        return;
-                    }
+                    btn.classList.remove('uploading');
+                    btn.textContent = '🔥 Upload to Firebase';
+                    btn.disabled = false;
+                    showFirebaseStatus('This narrator already exists. Use "Request Change" to suggest updates.', 'error');
+                    return;
                 }
                 
                 // Upload image to Firebase Storage
