@@ -1237,7 +1237,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.8.4</span>
+            <span class="version-badge">v1.8.5</span>
         </header>
 
         <div class="search-container">
@@ -2878,8 +2878,12 @@
                     source: 'imdb',
                     url: profileUrl,
                     imageUrl: null,
+                    images: [],
                     name: null
                 };
+                
+                const foundImages = new Set();
+                const maxImages = 8;
 
                 // Extract name from profile
                 const titleMatch = profileHtml.match(/<title>([^|<]+)/i);
@@ -2965,65 +2969,86 @@
                 // Portrait aspect ratio for headshots is usually ~140x207 or similar
                 const headshotPatterns = [
                     // Look for the main profile image (usually first in header)
-                    /class="[^"]*ipc-image[^"]*"[^>]*src="(https:\/\/m\.media-amazon\.com\/images\/M\/[^"]+)"/i,
+                    /class="[^"]*ipc-image[^"]*"[^>]*src="(https:\/\/m\.media-amazon\.com\/images\/M\/[^"]+)"/gi,
                     // Images with portrait crop ratios (width < height significantly)
                     /(https:\/\/m\.media-amazon\.com\/images\/M\/[^"]+_CR\d+,0,140,207_[^"]+\.jpg)/gi,
                     /(https:\/\/m\.media-amazon\.com\/images\/M\/[^"]+_UY207_[^"]+\.jpg)/gi,
+                    /(https:\/\/m\.media-amazon\.com\/images\/M\/[^"]+_UY317_[^"]+\.jpg)/gi,
+                    /(https:\/\/m\.media-amazon\.com\/images\/M\/[^"]+_SY317_[^"]+\.jpg)/gi,
                     // Publicity images
                     /(https:\/\/m\.media-amazon\.com\/images\/M\/[^"]+Publicity[^"]+\.jpg)/gi,
+                    // General M images (person photos)
+                    /(https:\/\/m\.media-amazon\.com\/images\/M\/MV[^"]+\.jpg)/gi,
                 ];
                 
-                let headshotUrl = null;
-                
+                // Collect all matching images
                 for (const pattern of headshotPatterns) {
-                    const match = profileHtml.match(pattern);
-                    if (match) {
-                        headshotUrl = match[1];
-                        log(`IMDB: Found potential headshot with pattern`);
-                        break;
+                    if (result.images.length >= maxImages) break;
+                    
+                    const matches = profileHtml.matchAll(pattern);
+                    for (const match of matches) {
+                        if (result.images.length >= maxImages) break;
+                        
+                        let imgUrl = match[1];
+                        
+                        // Skip movie posters (90x133 is typical movie poster crop)
+                        if (imgUrl.includes('CR22,0,90,133') || imgUrl.includes('_UX90_')) {
+                            continue;
+                        }
+                        
+                        // Upgrade to larger size
+                        imgUrl = imgUrl.replace(/\._V1_[^.]+\.jpg/, '._V1_UX400.jpg');
+                        
+                        if (!foundImages.has(imgUrl)) {
+                            foundImages.add(imgUrl);
+                            result.images.push(imgUrl);
+                            if (!result.imageUrl) {
+                                result.imageUrl = imgUrl;
+                                log(`IMDB: Found headshot: ${imgUrl.substring(0, 70)}...`);
+                            }
+                        }
                     }
                 }
                 
-                // Check if we found an actual headshot (not a movie poster)
-                // Movie posters typically have CR22,0,90,133 (landscape-ish crop)
-                if (headshotUrl) {
-                    // Check if this looks like a movie poster (90x133 is typical movie poster crop)
-                    if (headshotUrl.includes('CR22,0,90,133') || headshotUrl.includes('_UX90_')) {
-                        log(`IMDB: Found image appears to be a movie poster, not a headshot`);
-                        headshotUrl = null;
+                // If we found images from the profile page, also try media index for more
+                if (result.images.length < maxImages) {
+                    const hasPhotos = profileHtml.includes('/mediaindex') || profileHtml.includes('Photos<');
+                    if (hasPhotos) {
+                        // Try the media index page for this person
+                        const mediaUrl = `https://www.imdb.com${profilePath}/mediaindex/`;
+                        log(`IMDB: Checking media page for more images...`);
+                        
+                        try {
+                            const mediaHtml = await fetchViaProxy(mediaUrl);
+                            // Look for all images on media page
+                            const mediaPattern = /(https:\/\/m\.media-amazon\.com\/images\/M\/MV[^"]+\.jpg)/gi;
+                            const mediaMatches = mediaHtml.matchAll(mediaPattern);
+                            
+                            for (const match of mediaMatches) {
+                                if (result.images.length >= maxImages) break;
+                                
+                                let imgUrl = match[1];
+                                imgUrl = imgUrl.replace(/\._V1_[^.]+\.jpg/, '._V1_UX400.jpg');
+                                
+                                if (!foundImages.has(imgUrl)) {
+                                    foundImages.add(imgUrl);
+                                    result.images.push(imgUrl);
+                                    if (!result.imageUrl) result.imageUrl = imgUrl;
+                                }
+                            }
+                            
+                            if (result.images.length > 1) {
+                                log(`IMDB: Found ${result.images.length} images total from profile + media pages`);
+                            }
+                        } catch (e) {
+                            log(`IMDB: Media page fetch failed: ${e.message}`);
+                        }
                     }
                 }
                 
-                // If we still have a headshot, use it
-                if (headshotUrl) {
-                    // Upgrade to larger size
-                    result.imageUrl = headshotUrl.replace(/\._V1_[^.]+\.jpg/, '._V1_UX400.jpg');
-                    log(`IMDB: Selected headshot: ${result.imageUrl.substring(0, 70)}...`);
+                if (result.images.length > 0) {
+                    log(`IMDB: Returning ${result.images.length} images`);
                     return result;
-                }
-                
-                // Fallback: Check if there's a "Photos" section link which means they have photos
-                const hasPhotos = profileHtml.includes('/mediaindex') || profileHtml.includes('Photos<');
-                if (!hasPhotos) {
-                    log('IMDB: No photos section found - person likely has no headshot');
-                    return null;
-                }
-                
-                // Try the media index page for this person
-                const mediaUrl = `https://www.imdb.com${profilePath}/mediaindex/`;
-                log(`IMDB: Checking media page: ${mediaUrl}`);
-                
-                try {
-                    const mediaHtml = await fetchViaProxy(mediaUrl);
-                    // Look for publicity/portrait photos
-                    const mediaMatch = mediaHtml.match(/(https:\/\/m\.media-amazon\.com\/images\/M\/[^"]+\.jpg)/i);
-                    if (mediaMatch) {
-                        result.imageUrl = mediaMatch[1].replace(/\._V1_[^.]+\.jpg/, '._V1_UX400.jpg');
-                        log(`IMDB: Found image from media page`);
-                        return result;
-                    }
-                } catch (e) {
-                    log(`IMDB: Media page fetch failed: ${e.message}`);
                 }
 
                 log('IMDB: No suitable headshot found', 'error');
