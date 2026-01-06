@@ -1237,7 +1237,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.9.2</span>
+            <span class="version-badge">v1.9.3</span>
         </header>
 
         <div class="search-container">
@@ -4511,7 +4511,7 @@
                 ];
                 const randomOpening = openings[Math.floor(Math.random() * openings.length)];
                 
-                const prompt = `"${currentData.name}" narrator bio sentences only.`;
+                const prompt = `"${currentData.name}" narrator bio approximately 4 sentences.`;
 
                 // Use Netlify serverless function (API key hidden on server)
                 const response = await fetch('/api/gemini', {
