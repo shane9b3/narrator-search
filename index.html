@@ -1237,7 +1237,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.8.2</span>
+            <span class="version-badge">v1.8.3</span>
         </header>
 
         <div class="search-container">
@@ -2725,58 +2725,57 @@
             log(`IMDB: Searching for ${name}`);
 
             try {
-                // Strategy 1: Try IMDB's suggestion API (usually CORS-friendly)
+                // Strategy 1: Try IMDB's suggestion API via proxy
                 // This returns JSON with person info including images
                 const firstLetter = name.charAt(0).toLowerCase();
-                const suggestionUrl = `https://v3.sg.media-imdb.com/suggestion/names/${firstLetter}/${encodeURIComponent(name)}.json`;
+                const suggestionUrl = `https://v2.sg.media-imdb.com/suggestion/${firstLetter}/${encodeURIComponent(name.toLowerCase().replace(/\s+/g, '_'))}.json`;
                 
                 try {
-                    const response = await fetch(suggestionUrl);
-                    if (response.ok) {
-                        const data = await response.json();
-                        log(`IMDB: Suggestion API returned ${data.d?.length || 0} results`);
+                    log(`IMDB: Trying suggestion API...`);
+                    const jsonText = await fetchViaProxy(suggestionUrl);
+                    const data = JSON.parse(jsonText);
+                    log(`IMDB: Suggestion API returned ${data.d?.length || 0} results`);
+                    
+                    if (data.d && data.d.length > 0) {
+                        // Find the best match - look for exact name match first
+                        const searchNameLower = name.toLowerCase();
+                        let bestMatch = null;
                         
-                        if (data.d && data.d.length > 0) {
-                            // Find the best match - look for exact name match first
-                            const searchNameLower = name.toLowerCase();
-                            let bestMatch = null;
+                        for (const person of data.d) {
+                            // Only look at name entries (id starts with 'nm')
+                            if (!person.id || !person.id.startsWith('nm')) continue;
                             
-                            for (const person of data.d) {
-                                // Only look at name entries (id starts with 'nm')
-                                if (!person.id || !person.id.startsWith('nm')) continue;
-                                
-                                const personNameLower = (person.l || '').toLowerCase();
-                                
-                                // Check if names match
-                                if (personNameLower === searchNameLower || 
-                                    personNameLower.includes(searchNameLower) ||
-                                    searchNameLower.includes(personNameLower)) {
-                                    bestMatch = person;
-                                    break;
-                                }
+                            const personNameLower = (person.l || '').toLowerCase();
+                            
+                            // Check if names match
+                            if (personNameLower === searchNameLower || 
+                                personNameLower.includes(searchNameLower) ||
+                                searchNameLower.includes(personNameLower)) {
+                                bestMatch = person;
+                                break;
                             }
+                        }
+                        
+                        // If no exact match, take first person result
+                        if (!bestMatch) {
+                            bestMatch = data.d.find(p => p.id?.startsWith('nm'));
+                        }
+                        
+                        if (bestMatch) {
+                            log(`IMDB: Found "${bestMatch.l}" via suggestion API`);
                             
-                            // If no exact match, take first person result
-                            if (!bestMatch) {
-                                bestMatch = data.d.find(p => p.id?.startsWith('nm'));
-                            }
+                            // Verify name matches
+                            const foundNameLower = (bestMatch.l || '').toLowerCase();
+                            const searchParts = name.toLowerCase().split(/\s+/);
+                            const foundParts = foundNameLower.split(/\s+/);
                             
-                            if (bestMatch) {
-                                log(`IMDB: Found "${bestMatch.l}" via suggestion API`);
-                                
-                                // Verify name matches
-                                const foundNameLower = (bestMatch.l || '').toLowerCase();
-                                const searchParts = name.toLowerCase().split(/\s+/);
-                                const foundParts = foundNameLower.split(/\s+/);
-                                
-                                const lastNameSearch = searchParts[searchParts.length - 1];
-                                const lastNameFound = foundParts[foundParts.length - 1];
-                                
-                                if (lastNameFound !== lastNameSearch) {
-                                    log(`IMDB: Name mismatch - searched "${name}" but found "${bestMatch.l}"`, 'error');
-                                    return null;
-                                }
-                                
+                            const lastNameSearch = searchParts[searchParts.length - 1];
+                            const lastNameFound = foundParts[foundParts.length - 1];
+                            
+                            if (lastNameFound !== lastNameSearch) {
+                                log(`IMDB: Name mismatch - searched "${name}" but found "${bestMatch.l}"`, 'error');
+                                // Don't return, try fallback
+                            } else {
                                 const result = {
                                     source: 'imdb',
                                     url: `https://www.imdb.com/name/${bestMatch.id}/`,
