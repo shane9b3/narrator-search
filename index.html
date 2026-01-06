@@ -3510,14 +3510,17 @@ Write the bio directly without any preamble:`;
                     })
                 });
                 
+                const data = await response.json();
+                
                 if (!response.ok) {
-                    throw new Error('AI API request failed');
+                    log(`AI API error: ${response.status} - ${JSON.stringify(data)}`, 'error');
+                    throw new Error(`AI API failed: ${data.error?.message || response.status}`);
                 }
                 
-                const data = await response.json();
                 const generatedBio = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
                 
                 if (!generatedBio) {
+                    log(`AI response structure: ${JSON.stringify(data).substring(0, 200)}`, 'error');
                     throw new Error('No bio generated');
                 }
                 
