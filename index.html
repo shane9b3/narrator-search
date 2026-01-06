@@ -1237,7 +1237,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.8.1</span>
+            <span class="version-badge">v1.8.2</span>
         </header>
 
         <div class="search-container">
@@ -1662,7 +1662,9 @@
             const corsProxies = [
                 (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
                 (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-                (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`
+                (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+                (u) => `https://thingproxy.freeboard.io/fetch/${u}`,
+                (u) => `https://cors-anywhere.herokuapp.com/${u}`
             ];
             
             for (const proxyFn of corsProxies) {
@@ -2723,7 +2725,87 @@
             log(`IMDB: Searching for ${name}`);
 
             try {
-                // Strategy 1: Try the IMDB find page
+                // Strategy 1: Try IMDB's suggestion API (usually CORS-friendly)
+                // This returns JSON with person info including images
+                const firstLetter = name.charAt(0).toLowerCase();
+                const suggestionUrl = `https://v3.sg.media-imdb.com/suggestion/names/${firstLetter}/${encodeURIComponent(name)}.json`;
+                
+                try {
+                    const response = await fetch(suggestionUrl);
+                    if (response.ok) {
+                        const data = await response.json();
+                        log(`IMDB: Suggestion API returned ${data.d?.length || 0} results`);
+                        
+                        if (data.d && data.d.length > 0) {
+                            // Find the best match - look for exact name match first
+                            const searchNameLower = name.toLowerCase();
+                            let bestMatch = null;
+                            
+                            for (const person of data.d) {
+                                // Only look at name entries (id starts with 'nm')
+                                if (!person.id || !person.id.startsWith('nm')) continue;
+                                
+                                const personNameLower = (person.l || '').toLowerCase();
+                                
+                                // Check if names match
+                                if (personNameLower === searchNameLower || 
+                                    personNameLower.includes(searchNameLower) ||
+                                    searchNameLower.includes(personNameLower)) {
+                                    bestMatch = person;
+                                    break;
+                                }
+                            }
+                            
+                            // If no exact match, take first person result
+                            if (!bestMatch) {
+                                bestMatch = data.d.find(p => p.id?.startsWith('nm'));
+                            }
+                            
+                            if (bestMatch) {
+                                log(`IMDB: Found "${bestMatch.l}" via suggestion API`);
+                                
+                                // Verify name matches
+                                const foundNameLower = (bestMatch.l || '').toLowerCase();
+                                const searchParts = name.toLowerCase().split(/\s+/);
+                                const foundParts = foundNameLower.split(/\s+/);
+                                
+                                const lastNameSearch = searchParts[searchParts.length - 1];
+                                const lastNameFound = foundParts[foundParts.length - 1];
+                                
+                                if (lastNameFound !== lastNameSearch) {
+                                    log(`IMDB: Name mismatch - searched "${name}" but found "${bestMatch.l}"`, 'error');
+                                    return null;
+                                }
+                                
+                                const result = {
+                                    source: 'imdb',
+                                    url: `https://www.imdb.com/name/${bestMatch.id}/`,
+                                    name: bestMatch.l,
+                                    imageUrl: null
+                                };
+                                
+                                // Get image from suggestion data
+                                if (bestMatch.i && bestMatch.i.imageUrl) {
+                                    // Upgrade image size - replace dimensions in URL
+                                    let imgUrl = bestMatch.i.imageUrl;
+                                    // IMDB images have size params like UX140 or UY209
+                                    // Replace with larger size
+                                    imgUrl = imgUrl.replace(/U[XY]\d+/g, 'UX400');
+                                    result.imageUrl = imgUrl;
+                                    log(`IMDB: Found headshot via suggestion API`);
+                                }
+                                
+                                if (result.imageUrl) {
+                                    return result;
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {
+                    log(`IMDB: Suggestion API failed: ${e.message}`, 'warning');
+                }
+                
+                // Strategy 2: Fallback to regular search via proxy
                 const searchUrl = `https://www.imdb.com/find/?q=${encodeURIComponent(name)}&s=nm`;
                 const html = await fetchViaProxy(searchUrl);
                 
