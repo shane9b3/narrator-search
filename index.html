@@ -1205,7 +1205,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.6.2</span>
+            <span class="version-badge">v1.6.3</span>
         </header>
 
         <div class="search-container">
@@ -2347,79 +2347,81 @@
 
         // Search SoundCloud
         async function searchSoundCloud(name) {
-            const url = SOURCES.soundcloud.getUrl(name);
-            log(`SoundCloud: Fetching ${url}`);
+            // Try multiple username formats
+            const nameLower = name.toLowerCase();
+            const usernameVariants = [
+                nameLower.replace(/[^a-z0-9]/g, ''),           // jamesdanielburkdoll
+                nameLower.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),  // james-daniel-burkdoll
+                nameLower.replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),  // james_daniel_burkdoll
+                nameLower.replace(/\s+/g, '').replace(/[^a-z0-9]/g, ''),    // jamesdanielburkdoll
+                nameLower.split(' ').pop()?.replace(/[^a-z0-9]/g, ''),      // burkdoll (last name only)
+                nameLower.split(' ')[0]?.replace(/[^a-z0-9]/g, '') + nameLower.split(' ').pop()?.replace(/[^a-z0-9]/g, '')  // jamesburkdoll
+            ].filter(Boolean);
+            
+            // Remove duplicates
+            const uniqueVariants = [...new Set(usernameVariants)];
+            
+            for (const username of uniqueVariants) {
+                const url = `https://soundcloud.com/${username}`;
+                log(`SoundCloud: Trying ${url}`);
 
-            try {
-                const html = await fetchViaProxy(url);
+                try {
+                    const html = await fetchViaProxy(url);
 
-                // Check if profile exists
-                if (html.includes("We can't find that user") || 
-                    html.includes('Something went wrong') ||
-                    html.length < 1000) {
-                    log('SoundCloud: Profile not found', 'error');
-                    return null;
-                }
-
-                const result = {
-                    source: 'soundcloud',
-                    url: url,
-                    name: null,
-                    imageUrl: null,
-                    bio: null
-                };
-
-                // Extract profile name from title or h1
-                const nameMatch = html.match(/<title>([^|<-]+)/i) ||
-                                  html.match(/<h1[^>]*>([^<]+)<\/h1>/i);
-                if (nameMatch) {
-                    result.name = stripHtml(nameMatch[1]).trim();
-                    log(`SoundCloud: Found name "${result.name}"`);
-                }
-
-                // Extract avatar image - SoundCloud uses sndcdn.com for images
-                // Look for high-res version (t500x500 or t1080x1080)
-                const imgMatch = html.match(/avatars[^"]*-t(?:1080x1080|500x500|200x200)[^"]*\.jpg/i) ||
-                                 html.match(/(https:\/\/i1\.sndcdn\.com\/avatars-[^"]+\.jpg)/i);
-                if (imgMatch) {
-                    let imgUrl = imgMatch[0];
-                    if (!imgUrl.startsWith('http')) {
-                        imgUrl = 'https://i1.sndcdn.com/' + imgUrl;
+                    // Check if profile exists
+                    if (html.includes("We can't find that user") || 
+                        html.includes('Something went wrong') ||
+                        html.length < 1000) {
+                        continue; // Try next variant
                     }
-                    // Upgrade to largest size
-                    imgUrl = imgUrl.replace(/-t\d+x\d+/, '-t500x500');
-                    result.imageUrl = imgUrl;
-                    log(`SoundCloud: Found image`);
-                }
 
-                // Extract bio/description
-                const bioMatch = html.match(/(?:description|bio)[^>]*>([^<]{20,500})/i);
-                if (bioMatch) {
-                    result.bio = stripHtml(bioMatch[1]);
-                    log(`SoundCloud: Found bio (${result.bio.length} chars)`);
-                }
+                    const result = {
+                        source: 'soundcloud',
+                        url: url,
+                        name: null,
+                        imageUrl: null,
+                        bio: null
+                    };
 
-                // Alternative bio from meta description
-                if (!result.bio) {
-                    const metaMatch = html.match(/content="([^"]*(?:voice|narrator|audiobook|actor)[^"]*)"/i);
-                    if (metaMatch) {
-                        result.bio = stripHtml(metaMatch[1]);
-                        log(`SoundCloud: Found bio from meta`);
+                    // Extract profile name from title or h1
+                    const nameMatch = html.match(/<title>([^|<-]+)/i) ||
+                                      html.match(/<h1[^>]*>([^<]+)<\/h1>/i);
+                    if (nameMatch) {
+                        result.name = stripHtml(nameMatch[1]).trim();
+                        log(`SoundCloud: Found name "${result.name}"`);
                     }
+
+                    // Extract avatar image - SoundCloud uses sndcdn.com for images
+                    const imgMatch = html.match(/avatars[^"]*-t(?:1080x1080|500x500|200x200)[^"]*\.jpg/i) ||
+                                     html.match(/(https:\/\/i1\.sndcdn\.com\/avatars-[^"]+\.jpg)/i);
+                    if (imgMatch) {
+                        let imgUrl = imgMatch[0];
+                        if (!imgUrl.startsWith('http')) {
+                            imgUrl = 'https://i1.sndcdn.com/' + imgUrl;
+                        }
+                        imgUrl = imgUrl.replace(/-t\d+x\d+/, '-t500x500');
+                        result.imageUrl = imgUrl;
+                        log(`SoundCloud: Found image`);
+                    }
+
+                    // Extract bio/description
+                    const bioMatch = html.match(/(?:description|bio)[^>]*>([^<]{20,500})/i);
+                    if (bioMatch) {
+                        result.bio = stripHtml(bioMatch[1]);
+                        log(`SoundCloud: Found bio (${result.bio.length} chars)`);
+                    }
+
+                    if (result.imageUrl || result.bio) {
+                        return result;
+                    }
+
+                } catch (error) {
+                    continue; // Try next variant
                 }
-
-                // Only return if we found something useful (especially an image)
-                if (result.imageUrl || result.bio) {
-                    return result;
-                }
-
-                log('SoundCloud: No useful data found', 'error');
-                return null;
-
-            } catch (error) {
-                log(`SoundCloud: Error - ${error.message}`, 'error');
-                return null;
             }
+            
+            log('SoundCloud: Profile not found', 'error');
+            return null;
         }
 
         // Search IMDB for image (many narrators are also actors)
@@ -2629,78 +2631,86 @@
         // Google search for narrator info and images
         async function searchGoogle(name) {
             // Use Google's search with specific terms for audiobook narrators
-            const searchQuery = `${name} narrator audiobook`;
-            log(`Google: Searching for "${searchQuery}"`);
+            const searchQueries = [
+                `${name} narrator audiobook`,
+                `${name} voice actor`,
+                `"${name}" narrator`
+            ];
+            
+            log(`Google: Searching for "${name}"`);
 
             try {
                 const result = {
                     source: 'google',
-                    url: `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`,
+                    url: `https://www.google.com/search?q=${encodeURIComponent(searchQueries[0])}`,
                     imageUrl: null
                 };
                 
-                // Try Google Images first
-                const imageSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}&tbm=isch`;
-                
-                try {
-                    const html = await fetchViaProxy(imageSearchUrl);
+                // Try each search query
+                for (const searchQuery of searchQueries) {
+                    // Try Google Images
+                    const imageSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}&tbm=isch`;
                     
-                    // Google Images embeds image URLs in various formats
-                    // Pattern 1: Direct image URLs in JSON-like structures
-                    const patterns = [
-                        /\["(https:\/\/[^"]+\.(?:jpg|jpeg|png))"[^\]]*,\s*\d+,\s*\d+\]/gi,
-                        /"ou":"(https:\/\/[^"]+\.(?:jpg|jpeg|png)[^"]*)"/gi,
-                        /\["(https:\/\/[^"]+\.(?:jpg|jpeg|png))",\d+,\d+\]/gi,
-                        /data-src="(https:\/\/[^"]+\.(?:jpg|jpeg|png)[^"]*)"/gi,
-                        /src="(https:\/\/encrypted-tbn[^"]+)"/gi
-                    ];
-                    
-                    for (const pattern of patterns) {
-                        const matches = html.matchAll(pattern);
-                        for (const match of matches) {
-                            const imgUrl = match[1];
-                            // Skip Google's own assets and tiny images
-                            if (!imgUrl.includes('google.com') && 
-                                !imgUrl.includes('gstatic.com') &&
-                                !imgUrl.includes('googleapis.com') &&
-                                !imgUrl.includes('icon') &&
-                                !imgUrl.includes('logo') &&
-                                !imgUrl.includes('button') &&
-                                !imgUrl.includes('1x1') &&
-                                imgUrl.length > 50) {  // Real image URLs are usually longer
-                                result.imageUrl = imgUrl;
-                                log(`Google: Found image from image search`);
-                                return result;
+                    try {
+                        const html = await fetchViaProxy(imageSearchUrl);
+                        
+                        // Google Images embeds image URLs in various formats
+                        const patterns = [
+                            /\["(https:\/\/[^"]+\.(?:jpg|jpeg|png))"[^\]]*,\s*\d+,\s*\d+\]/gi,
+                            /"ou":"(https:\/\/[^"]+\.(?:jpg|jpeg|png)[^"]*)"/gi,
+                            /\["(https:\/\/[^"]+\.(?:jpg|jpeg|png))",\d+,\d+\]/gi,
+                            /data-src="(https:\/\/[^"]+\.(?:jpg|jpeg|png)[^"]*)"/gi,
+                            /src="(https:\/\/encrypted-tbn[^"]+)"/gi,
+                            /"(https:\/\/i1\.sndcdn\.com\/[^"]+)"/gi,  // SoundCloud images
+                            /"(https:\/\/[^"]*avatars[^"]*\.(?:jpg|jpeg|png)[^"]*)"/gi
+                        ];
+                        
+                        for (const pattern of patterns) {
+                            const matches = html.matchAll(pattern);
+                            for (const match of matches) {
+                                const imgUrl = match[1];
+                                // Skip Google's own assets and tiny images
+                                if (!imgUrl.includes('google.com') && 
+                                    !imgUrl.includes('gstatic.com') &&
+                                    !imgUrl.includes('googleapis.com') &&
+                                    !imgUrl.includes('icon') &&
+                                    !imgUrl.includes('logo') &&
+                                    !imgUrl.includes('button') &&
+                                    !imgUrl.includes('1x1') &&
+                                    !imgUrl.includes('placeholder') &&
+                                    imgUrl.length > 50) {
+                                    result.imageUrl = imgUrl;
+                                    log(`Google: Found image from "${searchQuery}"`);
+                                    return result;
+                                }
                             }
                         }
+                    } catch (e) {
+                        log(`Google: Image search failed for "${searchQuery}": ${e.message}`);
                     }
-                } catch (e) {
-                    log(`Google: Image search failed: ${e.message}`);
                 }
                 
-                // Try regular Google search for knowledge panel
+                // Try DuckDuckGo as fallback
                 try {
-                    const regularSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
-                    const regularHtml = await fetchViaProxy(regularSearchUrl);
+                    const ddgUrl = `https://duckduckgo.com/?q=${encodeURIComponent(name + ' narrator')}&iax=images&ia=images`;
+                    const ddgHtml = await fetchViaProxy(ddgUrl);
                     
-                    // Look for knowledge panel image or featured snippet image
-                    const kpPatterns = [
-                        /data-src="(https:\/\/[^"]+\.(?:jpg|jpeg|png)[^"]*)"/i,
-                        /src="(https:\/\/encrypted-tbn[^"]+)"/i,
-                        /"(https:\/\/lh\d\.googleusercontent\.com\/[^"]+)"/i,
-                        /content="(https:\/\/[^"]+\.(?:jpg|jpeg|png)[^"]*)"/i
+                    // DuckDuckGo image patterns
+                    const ddgPatterns = [
+                        /"image":"(https:\/\/[^"]+\.(?:jpg|jpeg|png)[^"]*)"/gi,
+                        /vqd=([^&]+)/
                     ];
                     
-                    for (const pattern of kpPatterns) {
-                        const match = regularHtml.match(pattern);
-                        if (match && !match[1].includes('google.com/images/branding')) {
+                    for (const pattern of ddgPatterns) {
+                        const match = ddgHtml.match(pattern);
+                        if (match && match[1] && match[1].startsWith('http')) {
                             result.imageUrl = match[1];
-                            log(`Google: Found knowledge panel image`);
+                            log(`Google: Found image via DuckDuckGo`);
                             return result;
                         }
                     }
                 } catch (e) {
-                    log(`Google: Regular search failed: ${e.message}`);
+                    log(`DuckDuckGo fallback failed: ${e.message}`);
                 }
 
                 log('Google: No image found', 'error');
