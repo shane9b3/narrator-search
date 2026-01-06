@@ -1210,6 +1210,37 @@
                 .replace(/\s+/g, ' ')
                 .trim();
         }
+        
+        // Clean bio text - remove narrator name from the start if present
+        function cleanBio(bio, name) {
+            if (!bio || !name) return bio;
+            
+            let cleanedBio = bio.trim();
+            
+            // Create variants of the name to check
+            const nameVariants = [
+                name,
+                name.replace(/\./g, ''),  // Remove periods (R.C. -> RC)
+                name.replace(/\s+/g, ' ').trim()  // Normalize spaces
+            ];
+            
+            for (const nameVariant of nameVariants) {
+                // Check if bio starts with the name (with optional punctuation/whitespace after)
+                const escapedName = nameVariant.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const nameRegex = new RegExp(`^${escapedName}[,.:;]?\\s*`, 'i');
+                
+                if (nameRegex.test(cleanedBio)) {
+                    cleanedBio = cleanedBio.replace(nameRegex, '').trim();
+                    // Capitalize first letter after removing name
+                    if (cleanedBio.length > 0) {
+                        cleanedBio = cleanedBio.charAt(0).toUpperCase() + cleanedBio.slice(1);
+                    }
+                    break;
+                }
+            }
+            
+            return cleanedBio;
+        }
 
         // Search Audible
         async function searchAudible(name) {
@@ -1828,7 +1859,7 @@
                     if (match) {
                         const text = stripHtml(match[1]).trim();
                         if (text.length > 80 && !text.includes('»')) {
-                            result.bio = text;
+                            result.bio = cleanBio(text, result.name || name);
                             log(`Tantor: Found bio in section (${result.bio.length} chars)`);
                             bioFound = true;
                             break;
@@ -1878,7 +1909,7 @@
                     }
                     
                     if (bestBio) {
-                        result.bio = bestBio;
+                        result.bio = cleanBio(bestBio, result.name || name);
                         log(`Tantor: Found bio (${result.bio.length} chars, score: ${bestScore})`);
                     }
                 }
@@ -2187,62 +2218,78 @@
         // Google search for narrator info and images
         async function searchGoogle(name) {
             // Use Google's search with specific terms for audiobook narrators
-            const searchQuery = `${name} audiobook narrator`;
-            const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}&tbm=isch`;
+            const searchQuery = `${name} narrator audiobook`;
             log(`Google: Searching for "${searchQuery}"`);
 
             try {
-                // First try Google Images for a photo
-                const html = await fetchViaProxy(searchUrl);
-                
                 const result = {
                     source: 'google',
                     url: `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`,
                     imageUrl: null
                 };
-
-                // Google Images embeds image URLs in the page
-                // Look for image data - they're often in data attributes or scripts
-                const imgMatches = html.matchAll(/\["(https:\/\/[^"]+\.(?:jpg|jpeg|png))[^"]*",\s*\d+,\s*\d+\]/gi);
                 
-                for (const match of imgMatches) {
-                    const imgUrl = match[1];
-                    // Skip tiny images, icons, and Google's own assets
-                    if (!imgUrl.includes('google.com') && 
-                        !imgUrl.includes('gstatic.com') &&
-                        !imgUrl.includes('icon') &&
-                        !imgUrl.includes('logo')) {
-                        result.imageUrl = imgUrl;
-                        log(`Google: Found image`);
-                        break;
+                // Try Google Images first
+                const imageSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}&tbm=isch`;
+                
+                try {
+                    const html = await fetchViaProxy(imageSearchUrl);
+                    
+                    // Google Images embeds image URLs in various formats
+                    // Pattern 1: Direct image URLs in JSON-like structures
+                    const patterns = [
+                        /\["(https:\/\/[^"]+\.(?:jpg|jpeg|png))"[^\]]*,\s*\d+,\s*\d+\]/gi,
+                        /"ou":"(https:\/\/[^"]+\.(?:jpg|jpeg|png)[^"]*)"/gi,
+                        /\["(https:\/\/[^"]+\.(?:jpg|jpeg|png))",\d+,\d+\]/gi,
+                        /data-src="(https:\/\/[^"]+\.(?:jpg|jpeg|png)[^"]*)"/gi,
+                        /src="(https:\/\/encrypted-tbn[^"]+)"/gi
+                    ];
+                    
+                    for (const pattern of patterns) {
+                        const matches = html.matchAll(pattern);
+                        for (const match of matches) {
+                            const imgUrl = match[1];
+                            // Skip Google's own assets and tiny images
+                            if (!imgUrl.includes('google.com') && 
+                                !imgUrl.includes('gstatic.com') &&
+                                !imgUrl.includes('googleapis.com') &&
+                                !imgUrl.includes('icon') &&
+                                !imgUrl.includes('logo') &&
+                                !imgUrl.includes('button') &&
+                                !imgUrl.includes('1x1') &&
+                                imgUrl.length > 50) {  // Real image URLs are usually longer
+                                result.imageUrl = imgUrl;
+                                log(`Google: Found image from image search`);
+                                return result;
+                            }
+                        }
                     }
+                } catch (e) {
+                    log(`Google: Image search failed: ${e.message}`);
                 }
-
-                // Alternative: look for og:image or other meta images
-                if (!result.imageUrl) {
-                    const metaMatch = html.match(/content="(https:\/\/[^"]+\.(?:jpg|jpeg|png)[^"]*)"/i);
-                    if (metaMatch && !metaMatch[1].includes('google')) {
-                        result.imageUrl = metaMatch[1];
-                        log(`Google: Found meta image`);
-                    }
-                }
-
-                // Try regular Google search for more info
-                if (!result.imageUrl) {
+                
+                // Try regular Google search for knowledge panel
+                try {
                     const regularSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
                     const regularHtml = await fetchViaProxy(regularSearchUrl);
                     
-                    // Look for knowledge panel image
-                    const kpMatch = regularHtml.match(/data-src="(https:\/\/[^"]+)"/i) ||
-                                   regularHtml.match(/src="(https:\/\/encrypted-tbn[^"]+)"/i);
-                    if (kpMatch) {
-                        result.imageUrl = kpMatch[1];
-                        log(`Google: Found knowledge panel image`);
+                    // Look for knowledge panel image or featured snippet image
+                    const kpPatterns = [
+                        /data-src="(https:\/\/[^"]+\.(?:jpg|jpeg|png)[^"]*)"/i,
+                        /src="(https:\/\/encrypted-tbn[^"]+)"/i,
+                        /"(https:\/\/lh\d\.googleusercontent\.com\/[^"]+)"/i,
+                        /content="(https:\/\/[^"]+\.(?:jpg|jpeg|png)[^"]*)"/i
+                    ];
+                    
+                    for (const pattern of kpPatterns) {
+                        const match = regularHtml.match(pattern);
+                        if (match && !match[1].includes('google.com/images/branding')) {
+                            result.imageUrl = match[1];
+                            log(`Google: Found knowledge panel image`);
+                            return result;
+                        }
                     }
-                }
-
-                if (result.imageUrl) {
-                    return result;
+                } catch (e) {
+                    log(`Google: Regular search failed: ${e.message}`);
                 }
 
                 log('Google: No image found', 'error');
