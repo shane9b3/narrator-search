@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Audiobook Narrator Search v1.3.0</title>
+    <title>Audiobook Narrator Search v1.3.1</title>
     
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -27,122 +27,128 @@
             font-size: 0.7rem; color: #6b7280; background: rgba(255, 255, 255, 0.05);
             padding: 2px 10px; border-radius: 12px; display: inline-block; margin-bottom: 1rem; letter-spacing: 1px;
         }
+        
+        /* Search Bar & Bulk Toggle */
         .search-container { display: flex; gap: 1rem; margin-bottom: 1rem; align-items: flex-start; }
         .search-input, .bulk-input {
             flex: 1; padding: 1rem 1.5rem; font-size: 1.1rem; border: none; border-radius: 50px;
-            background: rgba(255, 255, 255, 0.1); color: #fff; outline: none;
+            background: rgba(255, 255, 255, 0.1); color: #fff; outline: none; transition: 0.3s;
         }
-        .bulk-input { border-radius: 15px; height: 150px; resize: none; display: none; }
+        .bulk-input { border-radius: 15px; height: 120px; resize: none; display: none; }
         .search-btn, .bulk-toggle-btn {
             padding: 1rem 2rem; font-size: 1.1rem; font-weight: 600; border: none; border-radius: 50px;
-            background: linear-gradient(135deg, #e94560, #f5a623); color: #fff; cursor: pointer; transition: 0.2s;
+            color: #fff; cursor: pointer; transition: 0.2s;
         }
+        .search-btn { background: linear-gradient(135deg, #e94560, #f5a623); }
         .bulk-toggle-btn { background: rgba(255, 255, 255, 0.1); color: #8892a0; }
         .bulk-toggle-btn.active { background: #e94560; color: #fff; }
-        
-        /* Bulk Status Styles */
+
+        /* Bulk Progress UI */
         .bulk-progress-container {
-            display: none; background: rgba(0,0,0,0.3); padding: 1.5rem; border-radius: 15px; margin-bottom: 2rem;
+            display: none; background: rgba(0,0,0,0.3); padding: 1.5rem; border-radius: 15px; margin-bottom: 2rem; border: 1px solid rgba(255,255,255,0.1);
         }
-        .progress-bar-bg { background: rgba(255,255,255,0.1); height: 10px; border-radius: 5px; margin: 10px 0; overflow: hidden; }
+        .progress-bar-bg { background: rgba(255,255,255,0.1); height: 8px; border-radius: 4px; margin: 12px 0; overflow: hidden; }
         .progress-bar-fill { background: #e94560; height: 100%; width: 0%; transition: width 0.3s; }
         .bulk-table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.85rem; }
-        .bulk-table td { padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .status-found { color: #22c55e; }
+        .bulk-table td { padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .status-found { color: #22c55e; font-weight: bold; }
         .status-error { color: #ef4444; }
 
-        /* Existing component styles... */
-        .loading { display: none; text-align: center; padding: 3rem; }
+        /* Loader */
+        .loading { display: none; text-align: center; padding: 2rem; }
         .loading.active { display: block; }
-        .spinner { width: 50px; height: 50px; border: 3px solid rgba(255, 255, 255, 0.1); border-top-color: #e94560; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem; }
+        .spinner { width: 40px; height: 40px; border: 3px solid rgba(255, 255, 255, 0.1); border-top-color: #e94560; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .source-progress { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; margin-top: 1rem; }
-        .source-status { padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.75rem; background: rgba(255, 255, 255, 0.05); color: #6b7280; }
-        .source-status.searching { background: rgba(233, 69, 96, 0.2); color: #e94560; animation: pulse 1.5s infinite; }
-        .source-status.found { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-        .result-card { display: none; background: rgba(255, 255, 255, 0.05); border-radius: 20px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.1); }
+
+        /* Result Card */
+        .result-card { display: none; background: rgba(255, 255, 255, 0.05); border-radius: 20px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.1); margin-top: 1rem; }
         .result-card.active { display: block; animation: fadeIn 0.5s ease; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        .profile-header { padding: 2rem; background: rgba(0, 0, 0, 0.2); }
-        .narrator-name { font-size: 1.8rem; font-weight: 600; margin-bottom: 0.5rem; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .profile-header { padding: 2rem; background: rgba(0, 0, 0, 0.3); border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .narrator-name { font-size: 1.8rem; font-weight: 600; margin-bottom: 0.5rem; color: #fff; }
         .source-badges { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-        .source-badge { padding: 0.25rem 0.75rem; background: rgba(233, 69, 96, 0.2); border-radius: 20px; font-size: 0.75rem; color: #e94560; }
-        .profile-body { padding: 2rem; }
-        .section { margin-bottom: 2rem; }
-        .section h3 { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; color: #f5a623; }
-        .tag { padding: 0.4rem 0.8rem; background: rgba(255, 255, 255, 0.08); border-radius: 8px; font-size: 0.85rem; color: #a8a8a8; margin-right: 0.5rem; margin-bottom: 0.5rem; display: inline-block; }
+        .source-badge { padding: 0.3rem 0.8rem; background: rgba(233, 69, 96, 0.15); border-radius: 20px; font-size: 0.7rem; color: #e94560; border: 1px solid rgba(233,69,96,0.2); }
+
+        .selection-section { padding: 1.5rem 2rem; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+        .selection-section h3 { font-size: 1rem; color: #f5a623; margin-bottom: 1rem; }
+
+        /* Image Selection Gallery */
         .image-options { display: flex; flex-wrap: wrap; gap: 1rem; }
-        .image-option { position: relative; cursor: pointer; border-radius: 12px; overflow: hidden; border: 3px solid transparent; background: #000; }
-        .image-option.selected { border-color: #e94560; box-shadow: 0 0 20px rgba(233, 69, 96, 0.4); }
-        .image-option img { width: 120px; height: 120px; object-fit: cover; }
+        .image-option { position: relative; cursor: pointer; border-radius: 12px; overflow: hidden; border: 3px solid transparent; background: #000; transition: 0.2s; }
+        .image-option.selected { border-color: #e94560; box-shadow: 0 0 15px rgba(233, 69, 96, 0.4); }
+        .image-option img { width: 120px; height: 120px; object-fit: cover; display: block; }
+        .image-option-source { position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.7); font-size: 0.65rem; padding: 4px; text-align: center; color: #aaa; }
+        .image-option-check { position: absolute; top: 5px; right: 5px; background: #e94560; color: white; border-radius: 50%; width: 20px; height: 20px; display: none; align-items: center; justify-content: center; font-size: 12px; }
+        .image-option.selected .image-option-check { display: flex; }
+
+        /* Bio Selection List */
         .bio-options { display: flex; flex-direction: column; gap: 1rem; }
-        .bio-option { padding: 1rem; background: rgba(255, 255, 255, 0.05); border-radius: 12px; border: 2px solid transparent; cursor: pointer; }
-        .bio-option.selected { border-color: #e94560; background: rgba(233, 69, 96, 0.1); }
-        .bio-option-text { color: #c8c8c8; font-size: 0.9rem; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+        .bio-option { padding: 1.2rem; background: rgba(255, 255, 255, 0.03); border-radius: 12px; border: 2px solid transparent; cursor: pointer; transition: 0.2s; }
+        .bio-option:hover { background: rgba(255,255,255,0.06); }
+        .bio-option.selected { border-color: #e94560; background: rgba(233, 69, 96, 0.05); }
+        .bio-header { display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 0.5rem; color: #f5a623; font-weight: bold; }
+        .bio-option-text { font-size: 0.9rem; line-height: 1.6; color: #ccc; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
         .bio-option.selected .bio-option-text { -webkit-line-clamp: unset; }
-        .export-section { padding: 1.5rem 2rem; background: rgba(0, 0, 0, 0.2); border-top: 1px solid rgba(255, 255, 255, 0.1); }
-        #exportData { background: rgba(0, 0, 0, 0.3); padding: 1rem; border-radius: 8px; font-family: monospace; font-size: 0.75rem; color: #a8a8a8; overflow-x: auto; white-space: pre-wrap; max-height: 200px; }
-        .export-btn, .firebase-btn { margin-top: 1rem; padding: 0.75rem 1.5rem; border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer; }
+
+        /* Footer/Export */
+        .export-section { padding: 1.5rem 2rem; background: rgba(0, 0, 0, 0.2); }
+        #exportData { background: rgba(0, 0, 0, 0.4); padding: 1rem; border-radius: 8px; font-family: monospace; font-size: 0.75rem; color: #888; overflow-x: auto; margin: 1rem 0; }
+        .export-btn, .firebase-btn { padding: 0.8rem 1.5rem; border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer; transition: 0.2s; }
         .export-btn { background: linear-gradient(135deg, #e94560, #f5a623); }
-        .firebase-btn { background: linear-gradient(135deg, #4CAF50, #45a049); margin-left: 1rem; }
-        .debug-panel { margin-top: 2rem; padding: 1rem; background: rgba(0, 0, 0, 0.3); border-radius: 8px; font-family: monospace; font-size: 0.75rem; color: #6b7280; max-height: 200px; overflow-y: auto; }
+        .firebase-btn { background: #4CAF50; margin-left: 1rem; }
+        .debug-panel { margin-top: 1rem; padding: 1rem; background: rgba(0,0,0,0.5); border-radius: 8px; font-family: monospace; font-size: 0.7rem; color: #555; max-height: 150px; overflow-y: auto; }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
             <h1>🎧 Narrator Lookup</h1>
-            <div class="version-badge">Build: v1.3.0</div>
-            <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
+            <div class="version-badge">Build: v1.3.1 (Full Selection Mode)</div>
+            <p class="subtitle">Personal home-lab tool for LitLyric profiles</p>
         </header>
 
         <div class="search-container">
             <button class="bulk-toggle-btn" id="bulkToggle" onclick="toggleBulkMode()">Bulk</button>
-            <input type="text" class="search-input" id="narratorInput" placeholder="Enter narrator name (e.g., Simon Vance)" autocomplete="off">
-            <textarea class="bulk-input" id="bulkInput" placeholder="Enter one name per line..."></textarea>
-            <button class="search-btn" id="searchBtn" onclick="handleSearchClick()">Search</button>
+            <input type="text" class="search-input" id="narratorInput" placeholder="Enter narrator name (e.g., Simon Vance)">
+            <textarea class="bulk-input" id="bulkInput" placeholder="Enter names (one per line)..."></textarea>
+            <button class="search-btn" onclick="handleSearchClick()">Search</button>
         </div>
 
         <div class="bulk-progress-container" id="bulkProgress">
-            <p id="bulkStatusText">Processing: 0 / 0</p>
+            <p id="bulkStatusText">Processing...</p>
             <div class="progress-bar-bg"><div class="progress-bar-fill" id="bulkProgressBar"></div></div>
-            <table class="bulk-table" id="bulkTable">
-                <thead><tr><th align="left">Name</th><th align="right">Status</th></tr></thead>
+            <table class="bulk-table">
                 <tbody id="bulkTableBody"></tbody>
             </table>
         </div>
 
         <div class="loading" id="loading">
             <div class="spinner"></div>
-            <p id="loadingText">Searching narrator databases...</p>
-            <div class="source-progress" id="sourceProgress"></div>
+            <p>Searching sources...</p>
         </div>
 
         <div class="result-card" id="resultCard">
             <div class="profile-header">
-                <div class="profile-info">
-                    <h2 class="narrator-name" id="narratorName"></h2>
-                    <div class="source-badges" id="sourceBadges"></div>
-                </div>
+                <h2 class="narrator-name" id="narratorNameDisplay"></h2>
+                <div class="source-badges" id="sourceBadges"></div>
             </div>
-            <div class="selection-section" id="imageSelectionSection">
+
+            <div class="selection-section">
                 <h3>📷 Select Profile Image</h3>
                 <div class="image-options" id="imageOptions"></div>
             </div>
-            <div class="selection-section" id="bioSelectionSection">
+
+            <div class="selection-section">
                 <h3>📝 Select Biography</h3>
                 <div class="bio-options" id="bioOptions"></div>
             </div>
-            <div class="profile-body">
-                <div class="section" id="accentsSection"><h3>🗣️ Accents</h3><div class="tags-list" id="accentsList"></div></div>
-                <div class="section" id="genresSection"><h3>🎭 Genres</h3><div class="tags-list" id="genresList"></div></div>
-                <div class="sources-section"><h4>Sources</h4><div class="sources-list" id="sourcesList"></div></div>
-            </div>
+
             <div class="export-section">
-                <h3>📤 Selected Data</h3><pre id="exportData"></pre>
-                <button class="export-btn" id="copyBtn">Copy JSON</button>
-                <button class="firebase-btn" id="firebaseBtn" onclick="uploadToFirebase()">🔥 Upload to Firebase</button>
+                <h3>📤 Final Data</h3>
+                <pre id="exportData">{}</pre>
+                <button class="export-btn" onclick="copyJson()">Copy JSON</button>
+                <button class="firebase-btn" id="firebaseBtn" onclick="uploadToFirebase()">🔥 Push to Firebase</button>
             </div>
         </div>
 
@@ -150,184 +156,226 @@
     </div>
 
     <script>
-        const APP_VERSION = "1.3.0";
+        const APP_VERSION = "1.3.1";
         let isBulkMode = false;
-        const SOURCES = { audible: { name: 'Audible', icon: '🎧' }, wikipedia: { name: 'Wikipedia', icon: '📖' }, audiofile: { name: 'AudioFile', icon: '📰' }, imdb: { name: 'IMDB', icon: '🎬' } };
+        let currentNarratorData = null;
 
+        // Firebase Config
+        const FIREBASE_CONFIG = {
+            apiKey: "AIzaSyDPKVYX_lPfpPMfwF0ViesSr0YizYZyAX8",
+            authDomain: "litlyric-narrator-batabase.firebaseapp.com",
+            projectId: "litlyric-narrator-batabase",
+            storageBucket: "litlyric-narrator-batabase.firebasestorage.app",
+            appId: "1:312216800042:web:9b90057de27703b4b1ac53"
+        };
+        firebase.initializeApp(FIREBASE_CONFIG);
+        const db = firebase.firestore();
+
+        // UI Handlers
         function toggleBulkMode() {
             isBulkMode = !isBulkMode;
             document.getElementById('bulkToggle').classList.toggle('active');
             document.getElementById('narratorInput').style.display = isBulkMode ? 'none' : 'block';
             document.getElementById('bulkInput').style.display = isBulkMode ? 'block' : 'none';
-            document.getElementById('resultCard').classList.remove('active');
         }
 
         async function handleSearchClick() {
             if (isBulkMode) {
                 const names = document.getElementById('bulkInput').value.split('\n').map(n => n.trim()).filter(n => n);
-                if (names.length) runBulkSearch(names);
+                if (names.length) runBulkProcess(names);
             } else {
                 const name = document.getElementById('narratorInput').value.trim();
-                if (name) performSearch(name);
+                if (name) performSingleSearch(name);
             }
         }
 
-        async function runBulkSearch(names) {
-            document.getElementById('bulkProgress').style.display = 'block';
-            document.getElementById('bulkTableBody').innerHTML = '';
-            const progressBar = document.getElementById('bulkProgressBar');
-            
-            for (let i = 0; i < names.length; i++) {
-                const name = names[i];
-                document.getElementById('bulkStatusText').textContent = `Processing: ${i + 1} / ${names.length} (${name})`;
-                progressBar.style.width = `${((i + 1) / names.length) * 100}%`;
-                
-                const row = document.createElement('tr');
-                row.innerHTML = `<td>${name}</td><td align="right">⏳ Searching...</td>`;
-                document.getElementById('bulkTableBody').prepend(row);
-
-                try {
-                    const data = await getNarratorData(name);
-                    if (data && data.sources.length > 0) {
-                        row.cells[1].innerHTML = `<span class="status-found">✓ Found (${data.sources.length} sources)</span>`;
-                        // Auto-select best and upload if high confidence? (Optional)
-                        const merged = mergeResults(name, data.results);
-                        // For bulk, we'll just log it. You can add auto-firebase logic here.
-                    } else {
-                        row.cells[1].innerHTML = `<span class="status-error">✗ Not Found</span>`;
-                    }
-                } catch (e) {
-                    row.cells[1].innerHTML = `<span class="status-error">✗ Error</span>`;
-                }
-                
-                // Rate limiting delay
-                if (i < names.length - 1) await new Promise(r => setTimeout(r, 1500));
-            }
-            document.getElementById('bulkStatusText').textContent = `Bulk Search Complete: ${names.length} processed.`;
-        }
-
-        async function getNarratorData(name) {
-            const results = await Promise.all([searchWikipedia(name), searchIMDB(name), searchAudioFile(name)]);
-            return { name, results, sources: results.filter(r => r !== null) };
-        }
-
-        async function performSearch(name) {
+        // Search Logic
+        async function performSingleSearch(name) {
             document.getElementById('loading').classList.add('active');
             document.getElementById('resultCard').classList.remove('active');
-            log(`Searching v${APP_VERSION} for "${name}"`);
-            
+            log(`Single search: ${name}`);
+
             try {
-                const data = await getNarratorData(name);
-                const merged = mergeResults(name, data.results);
-                displayResult(merged);
-            } catch (e) { log(e.message, 'error'); }
-            finally { document.getElementById('loading').classList.remove('active'); }
+                const rawResults = await Promise.all([
+                    searchWikipedia(name),
+                    searchIMDB(name),
+                    searchAudioFile(name)
+                ]);
+                
+                const merged = mergeResults(name, rawResults);
+                displayNarrator(merged);
+            } catch (e) {
+                log(`Error: ${e.message}`, 'error');
+            } finally {
+                document.getElementById('loading').classList.remove('active');
+            }
         }
 
-        // [Utility functions fetchViaProxy, scoreImage, searchWikipedia, searchIMDB, searchAudioFile, mergeResults, etc. from v1.2.0 remain here]
-        async function fetchViaProxy(url) {
+        async function runBulkProcess(names) {
+            const bulkUI = document.getElementById('bulkProgress');
+            const table = document.getElementById('bulkTableBody');
+            const progress = document.getElementById('bulkProgressBar');
+            bulkUI.style.display = 'block';
+            table.innerHTML = '';
+
+            for (let i = 0; i < names.length; i++) {
+                const name = names[i];
+                progress.style.width = `${((i + 1) / names.length) * 100}%`;
+                document.getElementById('bulkStatusText').textContent = `Processing ${i+1}/${names.length}: ${name}`;
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `<td>${name}</td><td>Searching...</td>`;
+                table.prepend(row);
+
+                try {
+                    const results = await Promise.all([searchWikipedia(name), searchIMDB(name), searchAudioFile(name)]);
+                    const filtered = results.filter(r => r !== null);
+                    row.cells[1].innerHTML = filtered.length > 0 ? `<span class="status-found">Found in ${filtered.length} sources</span>` : `<span class="status-error">Not Found</span>`;
+                    
+                    // Delay for rate limiting
+                    if (i < names.length - 1) await new Promise(r => setTimeout(r, 1200));
+                } catch (e) { row.cells[1].innerHTML = `<span class="status-error">Error</span>`; }
+            }
+            document.getElementById('bulkStatusText').textContent = `Bulk complete. Click on any single name to refine and upload.`;
+        }
+
+        // Source Fetching
+        async function fetchProxy(url) {
             const proxies = [u => `https://corsproxy.io/?${encodeURIComponent(u)}`, u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}` ];
-            for (const proxy of proxies) { try { const res = await fetch(proxy(url)); if (res.ok) return await res.text(); } catch (e) { continue; } }
-            throw new Error('CORS failed');
-        }
-
-        function scoreImage(imageUrl, source) {
-            if (!imageUrl) return 0;
-            let score = 0;
-            const weights = { imdb: 110, audiofile: 100, wikipedia: 90 };
-            score += weights[source] || 10;
-            const lower = imageUrl.toLowerCase();
-            if (lower.includes('/images/m/')) score += 40;
-            if (lower.includes('/images/i/')) score -= 100;
-            if (lower.includes('cover') || lower.includes('.aa')) score -= 60;
-            return score;
+            for (const p of proxies) {
+                try {
+                    const res = await fetch(p(url));
+                    if (res.ok) return await res.text();
+                } catch (e) { continue; }
+            }
+            throw new Error('CORS Proxy failure');
         }
 
         async function searchWikipedia(name) {
             try {
                 const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(name.replace(/ /g, '_'))}`);
                 if (!res.ok) return null;
-                const data = await res.json();
-                if (!data.extract.toLowerCase().includes('narrator') && !data.extract.toLowerCase().includes('voice')) return null;
-                return { source: 'wikipedia', url: data.content_urls.desktop.page, bio: data.extract, imageUrl: data.thumbnail?.source };
+                const d = await res.json();
+                if (!/narrator|voice actor|audiobook/i.test(d.extract)) return null;
+                return { source: 'Wikipedia', bio: d.extract, image: d.thumbnail?.source, url: d.content_urls.desktop.page };
             } catch (e) { return null; }
         }
 
         async function searchIMDB(name) {
             try {
-                const html = await fetchViaProxy(`https://www.imdb.com/find/?q=${encodeURIComponent(name)}&s=nm`);
-                const match = html.match(/href="(\/name\/nm\d+)\/?"/i);
-                if (!match) return null;
-                const pUrl = `https://www.imdb.com${match[1]}/`;
-                const pHtml = await fetchViaProxy(pUrl);
-                const img = pHtml.match(/class="[^"]*ipc-image[^"]*"[^>]*src="(https:\/\/m\.media-amazon\.com\/images\/M\/[^"]+)"/i);
-                return { source: 'imdb', url: pUrl, imageUrl: img ? img[1].replace(/\._V1_[^.]+\.jpg/, '._V1_UX400.jpg') : null };
+                const html = await fetchProxy(`https://www.imdb.com/find/?q=${encodeURIComponent(name)}&s=nm`);
+                const idMatch = html.match(/href="(\/name\/nm\d+)\/?"/i);
+                if (!idMatch) return null;
+                const pUrl = `https://www.imdb.com${idMatch[1]}/`;
+                const pHtml = await fetchProxy(pUrl);
+                const imgMatch = pHtml.match(/class="[^"]*ipc-image[^"]*"[^>]*src="(https:\/\/m\.media-amazon\.com\/images\/M\/[^"]+)"/i);
+                return { source: 'IMDB', image: imgMatch ? imgMatch[1].replace(/\._V1_[^.]+\.jpg/, '._V1_UX400.jpg') : null, url: pUrl };
             } catch (e) { return null; }
         }
 
         async function searchAudioFile(name) {
             const url = `https://www.audiofilemagazine.com/narrators/${name.toLowerCase().replace(/\s+/g, '-')}/`;
             try {
-                const html = await fetchViaProxy(url);
+                const html = await fetchProxy(url);
                 if (!html.includes('Spotlight')) return null;
-                const res = { source: 'audiofile', url, accents: [], genres: [] };
-                const img = html.match(/src="([^"]*\/content\/uploaded\/images\/narrators\/[^"]+)"/i);
-                if (img) res.imageUrl = img[1].startsWith('http') ? img[1] : 'https://www.audiofilemagazine.com' + img[1];
-                return res;
+                const imgMatch = html.match(/src="([^"]*\/content\/uploaded\/images\/narrators\/[^"]+)"/i);
+                let img = imgMatch ? imgMatch[1] : null;
+                if (img && !img.startsWith('http')) img = 'https://www.audiofilemagazine.com' + img;
+                return { source: 'AudioFile', image: img, url };
             } catch (e) { return null; }
         }
 
-        function mergeResults(name, results) {
-            const filtered = results.filter(r => r !== null);
-            const merged = { name, images: [], bios: [], accents: [], genres: [], sources: [], selectedImage: 0, selectedBio: 0 };
-            filtered.forEach(r => {
-                merged.sources.push({ name: r.source, url: r.url });
-                if (r.imageUrl) merged.images.push({ url: r.imageUrl, source: r.source, score: scoreImage(r.imageUrl, r.source) });
-                if (r.bio) merged.bios.push({ text: r.bio, source: r.source, length: r.bio.length });
-                if (r.accents) merged.accents = [...new Set([...merged.accents, ...r.accents])];
-            });
-            merged.images.sort((a, b) => b.score - a.score);
-            merged.bios.sort((a, b) => b.length - a.length);
-            return merged;
+        // Logic
+        function scoreImg(url, src) {
+            if (!url) return 0;
+            let s = { IMDB: 110, AudioFile: 100, Wikipedia: 90 }[src] || 10;
+            if (url.includes('/images/M/')) s += 40;
+            if (url.includes('/images/I/') || url.includes('.aa')) s -= 100;
+            return s;
         }
 
-        function displayResult(data) {
-            currentData = data;
-            document.getElementById('narratorName').textContent = data.name;
-            document.getElementById('sourceBadges').innerHTML = data.sources.map(s => `<span class="source-badge">${s.name}</span>`).join('');
-            document.getElementById('imageOptions').innerHTML = data.images.map((img, i) => `<div class="image-option ${i === 0 ? 'selected' : ''}" onclick="selectImage(${i})"><img src="${img.url}"></div>`).join('');
-            document.getElementById('bioOptions').innerHTML = data.bios.map((bio, i) => `<div class="bio-option ${i === 0 ? 'selected' : ''}" onclick="selectBio(${i})"><p class="bio-option-text">${bio.text}</p></div>`).join('');
-            document.getElementById('accentsSection').style.display = data.accents.length ? 'block' : 'none';
-            document.getElementById('accentsList').innerHTML = data.accents.map(a => `<span class="tag">${a}</span>`).join('');
-            document.getElementById('sourcesList').innerHTML = data.sources.map(s => `<a href="${s.url}" target="_blank" class="tag">${s.name}</a>`).join('');
-            updateExportData();
+        function mergeResults(name, results) {
+            const data = { name, images: [], bios: [], sources: [] };
+            results.filter(r => r !== null).forEach(r => {
+                data.sources.push(r.source);
+                if (r.image) data.images.push({ url: r.image, source: r.source, score: scoreImg(r.image, r.source) });
+                if (r.bio) data.bios.push({ text: r.bio, source: r.source });
+            });
+            data.images.sort((a,b) => b.score - a.score);
+            return data;
+        }
+
+        function displayNarrator(data) {
+            currentNarratorData = data;
+            document.getElementById('narratorNameDisplay').textContent = data.name;
+            document.getElementById('sourceBadges').innerHTML = data.sources.map(s => `<span class="source-badge">${s}</span>`).join('');
+
+            const imgContainer = document.getElementById('imageOptions');
+            imgContainer.innerHTML = data.images.map((img, i) => `
+                <div class="image-option ${i===0?'selected':''}" onclick="selectImage(${i})">
+                    <img src="${img.url}">
+                    <div class="image-option-source">${img.source}</div>
+                    <div class="image-option-check">✓</div>
+                </div>
+            `).join('') || '<p style="color:#555">No images found.</p>';
+
+            const bioContainer = document.getElementById('bioOptions');
+            bioContainer.innerHTML = data.bios.map((bio, i) => `
+                <div class="bio-option ${i===0?'selected':''}" onclick="selectBio(${i})">
+                    <div class="bio-header">${bio.source}</div>
+                    <p class="bio-option-text">${bio.text}</p>
+                </div>
+            `).join('') || '<p style="color:#555">No bio found.</p>';
+
+            currentNarratorData.selectedImageIndex = data.images.length ? 0 : null;
+            currentNarratorData.selectedBioIndex = data.bios.length ? 0 : null;
+            
+            updateExport();
             document.getElementById('resultCard').classList.add('active');
         }
 
-        function selectImage(idx) { currentData.selectedImage = idx; document.querySelectorAll('.image-option').forEach((el, i) => el.classList.toggle('selected', i === idx)); updateExportData(); }
-        function selectBio(idx) { currentData.selectedBio = idx; document.querySelectorAll('.bio-option').forEach((el, i) => el.classList.toggle('selected', i === idx)); updateExportData(); }
-        function updateExportData() {
-            const exp = { name: currentData.name, imageUrl: currentData.images[currentData.selectedImage]?.url, bio: currentData.bios[currentData.selectedBio]?.text };
-            document.getElementById('exportData').textContent = JSON.stringify(exp, null, 2);
+        function selectImage(i) {
+            currentNarratorData.selectedImageIndex = i;
+            document.querySelectorAll('.image-option').forEach((el, idx) => el.classList.toggle('selected', idx === i));
+            updateExport();
         }
 
-        function log(msg, type='info') { const entry = document.createElement('div'); entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`; entry.style.color = type === 'error' ? '#ef4444' : '#6b7280'; document.getElementById('debugLog').appendChild(entry); }
+        function selectBio(i) {
+            currentNarratorantData.selectedBioIndex = i;
+            document.querySelectorAll('.bio-option').forEach((el, idx) => el.classList.toggle('selected', idx === i));
+            updateExport();
+        }
 
-        // Firebase Initialize
-        const FIREBASE_CONFIG = { apiKey: "AIzaSyDPKVYX_lPfpPMfwF0ViesSr0YizYZyAX8", authDomain: "litlyric-narrator-batabase.firebaseapp.com", projectId: "litlyric-narrator-batabase", storageBucket: "litlyric-narrator-batabase.firebasestorage.app", appId: "1:312216800042:web:9b90057de27703b4b1ac53" };
-        firebase.initializeApp(FIREBASE_CONFIG);
-        const db = firebase.firestore();
+        function updateExport() {
+            const img = currentNarratorData.images[currentNarratorData.selectedImageIndex]?.url || null;
+            const bio = currentNarratorData.bios[currentNarratorData.selectedBioIndex]?.text || null;
+            const json = { name: currentNarratorData.name, imageUrl: img, bio: bio };
+            document.getElementById('exportData').textContent = JSON.stringify(json, null, 2);
+        }
 
         async function uploadToFirebase() {
-            const btn = document.getElementById('firebaseBtn'); btn.disabled = true; btn.textContent = "Uploading...";
+            const btn = document.getElementById('firebaseBtn');
+            btn.disabled = true; btn.textContent = "Pushing...";
             try {
-                const data = JSON.parse(document.getElementById('exportData').textContent);
-                await db.collection('narrators').doc(currentData.name.toLowerCase().replace(/\s+/g, '-')).set(data, { merge: true });
-                btn.textContent = "Done!"; setTimeout(() => btn.textContent = "Upload to Firebase", 2000);
-            } catch (e) { btn.textContent = "Error"; } btn.disabled = false;
+                const json = JSON.parse(document.getElementById('exportData').textContent);
+                const docId = json.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+                await db.collection('narrators').doc(docId).set(json, { merge: true });
+                btn.textContent = "Success!";
+                setTimeout(() => { btn.textContent = "🔥 Push to Firebase"; btn.disabled = false; }, 2000);
+            } catch (e) { btn.textContent = "Error"; btn.disabled = false; }
         }
 
-        document.getElementById('copyBtn').addEventListener('click', () => { navigator.clipboard.writeText(document.getElementById('exportData').textContent); });
+        function copyJson() {
+            navigator.clipboard.writeText(document.getElementById('exportData').textContent);
+            alert("JSON Copied!");
+        }
+
+        function log(msg, type='info') {
+            const entry = document.createElement('div');
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            entry.style.color = type === 'error' ? '#e94560' : '#555';
+            document.getElementById('debugLog').appendChild(entry);
+        }
     </script>
 </body>
 </html>
