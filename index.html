@@ -1205,7 +1205,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.6.3</span>
+            <span class="version-badge">v1.6.4</span>
         </header>
 
         <div class="search-container">
@@ -1479,6 +1479,11 @@
                 name: 'SoundCloud',
                 icon: '☁️',
                 getUrl: (name) => `https://soundcloud.com/${name.toLowerCase().replace(/[^a-z0-9]/g, '')}`
+            },
+            personalsite: {
+                name: 'Personal Site',
+                icon: '🌐',
+                getUrl: (name) => null // Dynamic
             },
             tantor: {
                 name: 'Tantor',
@@ -2349,14 +2354,25 @@
         async function searchSoundCloud(name) {
             // Try multiple username formats
             const nameLower = name.toLowerCase();
+            const nameParts = nameLower.split(/\s+/);
+            const firstName = nameParts[0] || '';
+            const lastName = nameParts[nameParts.length - 1] || '';
+            const middleName = nameParts.length > 2 ? nameParts.slice(1, -1).join('') : '';
+            
             const usernameVariants = [
-                nameLower.replace(/[^a-z0-9]/g, ''),           // jamesdanielburkdoll
-                nameLower.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),  // james-daniel-burkdoll
-                nameLower.replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),  // james_daniel_burkdoll
-                nameLower.replace(/\s+/g, '').replace(/[^a-z0-9]/g, ''),    // jamesdanielburkdoll
-                nameLower.split(' ').pop()?.replace(/[^a-z0-9]/g, ''),      // burkdoll (last name only)
-                nameLower.split(' ')[0]?.replace(/[^a-z0-9]/g, '') + nameLower.split(' ').pop()?.replace(/[^a-z0-9]/g, '')  // jamesburkdoll
-            ].filter(Boolean);
+                // First-Last (most common for personal accounts)
+                `${firstName}-${lastName}`,
+                `${firstName}${lastName}`,
+                `${firstName}_${lastName}`,
+                // Full name variations
+                nameLower.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
+                nameLower.replace(/\s+/g, '').replace(/[^a-z0-9]/g, ''),
+                nameLower.replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),
+                // Last name only
+                lastName,
+                // First + middle + last (no separators)
+                `${firstName}${middleName}${lastName}`,
+            ].filter(v => v && v.length > 2);
             
             // Remove duplicates
             const uniqueVariants = [...new Set(usernameVariants)];
@@ -2421,6 +2437,103 @@
             }
             
             log('SoundCloud: Profile not found', 'error');
+            return null;
+        }
+
+        // Search for personal website
+        async function searchPersonalSite(name) {
+            const nameLower = name.toLowerCase();
+            const nameParts = nameLower.split(/\s+/);
+            const firstName = nameParts[0] || '';
+            const lastName = nameParts[nameParts.length - 1] || '';
+            
+            // Common personal website domain patterns
+            const domainVariants = [
+                `www.${firstName}${lastName}.com`,
+                `www.${nameLower.replace(/\s+/g, '')}.com`,
+                `${firstName}${lastName}.com`,
+                `${nameLower.replace(/\s+/g, '')}.com`,
+                `www.${firstName}-${lastName}.com`,
+                `www.${nameLower.replace(/\s+/g, '-')}.com`,
+            ];
+            
+            const uniqueDomains = [...new Set(domainVariants)];
+            
+            for (const domain of uniqueDomains) {
+                const url = `https://${domain}`;
+                log(`Personal Site: Trying ${url}`);
+                
+                try {
+                    const html = await fetchViaProxy(url);
+                    
+                    // Check if it's a real page (not a parked domain or error)
+                    if (html.length < 2000 || 
+                        html.includes('domain is for sale') ||
+                        html.includes('buy this domain') ||
+                        html.includes('parked') ||
+                        html.includes('404') ||
+                        html.includes('not found')) {
+                        continue;
+                    }
+                    
+                    const result = {
+                        source: 'personalsite',
+                        url: url,
+                        name: name,
+                        imageUrl: null,
+                        bio: null
+                    };
+                    
+                    // Look for profile/headshot images
+                    const imgPatterns = [
+                        /<img[^>]+src=["']([^"']+(?:headshot|profile|author|narrator|photo|portrait|about)[^"']*)["']/gi,
+                        /<img[^>]+(?:class|id)=["'][^"']*(?:headshot|profile|author|photo|portrait)[^"']*["'][^>]+src=["']([^"']+)["']/gi,
+                        /src=["']([^"']+\.(?:jpg|jpeg|png|webp))["'][^>]*(?:class|id)=["'][^"']*(?:headshot|profile|author|photo)[^"']*["']/gi,
+                        // Hero images or main images
+                        /<img[^>]+src=["']([^"']+\.(?:jpg|jpeg|png|webp))["'][^>]*(?:width|height)=["']?[2-9]\d{2}/gi
+                    ];
+                    
+                    for (const pattern of imgPatterns) {
+                        const matches = html.matchAll(pattern);
+                        for (const match of matches) {
+                            let imgUrl = match[1];
+                            if (!imgUrl.startsWith('http')) {
+                                imgUrl = new URL(imgUrl, url).href;
+                            }
+                            if (!imgUrl.includes('icon') && !imgUrl.includes('logo') && !imgUrl.includes('button')) {
+                                result.imageUrl = imgUrl;
+                                log(`Personal Site: Found image`);
+                                break;
+                            }
+                        }
+                        if (result.imageUrl) break;
+                    }
+                    
+                    // Look for bio/about text
+                    const bioPatterns = [
+                        /<(?:p|div)[^>]*(?:class|id)=["'][^"']*(?:bio|about|description)[^"']*["'][^>]*>([^<]{50,500})/gi,
+                        /<meta[^>]+name=["']description["'][^>]+content=["']([^"]{50,300})["']/gi
+                    ];
+                    
+                    for (const pattern of bioPatterns) {
+                        const match = html.match(pattern);
+                        if (match) {
+                            result.bio = stripHtml(match[1]).trim();
+                            log(`Personal Site: Found bio (${result.bio.length} chars)`);
+                            break;
+                        }
+                    }
+                    
+                    if (result.imageUrl || result.bio) {
+                        return result;
+                    }
+                    
+                } catch (error) {
+                    continue; // Try next domain
+                }
+            }
+            
+            log('Personal Site: No site found', 'error');
             return null;
         }
 
@@ -3145,6 +3258,17 @@
                 // Additional sources (skip in fast mode)
                 const additionalSearches = fastMode ? [] : [
                     (async () => {
+                        updateSourceStatus('personalsite', 'searching');
+                        try {
+                            const r = await fetchWithTimeout(searchPersonalSite(narratorName), 15000);
+                            updateSourceStatus('personalsite', r ? 'found' : 'not-found');
+                            return r;
+                        } catch (e) {
+                            updateSourceStatus('personalsite', 'not-found');
+                            return null;
+                        }
+                    })(),
+                    (async () => {
                         updateSourceStatus('voicestoknow', 'searching');
                         try {
                             const r = await fetchWithTimeout(searchVoicesToKnow(narratorName), 15000);
@@ -3181,7 +3305,7 @@
                 
                 // Mark skipped sources in fast mode
                 if (fastMode) {
-                    ['voicestoknow', 'soundbooth', 'soundcloud'].forEach(src => {
+                    ['personalsite', 'voicestoknow', 'soundbooth', 'soundcloud'].forEach(src => {
                         updateSourceStatus(src, 'not-found');
                     });
                 }
