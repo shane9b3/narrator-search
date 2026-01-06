@@ -1237,7 +1237,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.9.0</span>
+            <span class="version-badge">v1.9.1</span>
         </header>
 
         <div class="search-container">
@@ -3701,6 +3701,14 @@
             errorMessage.classList.remove('active');
             suggestions.style.display = 'none';
             searchBtn.disabled = true;
+            
+            // Reset firebase submit button
+            const firebaseBtn = document.getElementById('firebaseBtn');
+            if (firebaseBtn) {
+                firebaseBtn.disabled = false;
+                firebaseBtn.classList.remove('success', 'error', 'uploading');
+                firebaseBtn.innerHTML = '☁️ Submit to LitLyric Database';
+            }
 
             log(`Starting search for "${narratorName}"`);
             log(`skipDatabaseCheck = ${skipDatabaseCheck}`);
