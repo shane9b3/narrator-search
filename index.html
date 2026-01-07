@@ -1237,7 +1237,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.9.7</span>
+            <span class="version-badge">v1.9.8</span>
         </header>
 
         <div class="search-container">
@@ -3848,6 +3848,14 @@
                 }
                 
                 const merged = mergeResults(narratorName, liveResults.filter(r => r));
+                
+                // Preserve user's selections if they've made any
+                if (currentData && userHasSelectedImage) {
+                    merged.selectedImage = currentData.selectedImage;
+                }
+                if (currentData && userHasSelectedBio) {
+                    merged.selectedBio = currentData.selectedBio;
+                }
 
                 log(`Search complete. Sources found: ${merged.sources.length}`, 'success');
                 log(`Images found: ${merged.images.length}`, merged.images.length > 0 ? 'success' : 'error');
@@ -3859,6 +3867,7 @@
                 }
 
                 // Final display with all results
+                searchComplete = true;
                 displayResult(merged);
 
             } catch (error) {
