@@ -1237,7 +1237,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.9.6</span>
+            <span class="version-badge">v1.9.7</span>
         </header>
 
         <div class="search-container">
@@ -3748,12 +3748,22 @@
                 const liveResults = [];
                 let searchComplete = false;
                 const stillSearchingEl = document.getElementById('stillSearching');
+                let userHasSelectedImage = false;
+                let userHasSelectedBio = false;
                 
                 // Function to update display with current results
                 const updateLiveDisplay = () => {
                     if (liveResults.length > 0) {
                         const merged = mergeResults(narratorName, liveResults.filter(r => r));
                         if (merged.sources.length > 0) {
+                            // Preserve user's selections if they've made any
+                            if (currentData && userHasSelectedImage) {
+                                merged.selectedImage = currentData.selectedImage;
+                            }
+                            if (currentData && userHasSelectedBio) {
+                                merged.selectedBio = currentData.selectedBio;
+                            }
+                            
                             loading.classList.remove('active');
                             stillSearchingEl.style.display = 'flex';
                             displayResult(merged);
@@ -3761,6 +3771,10 @@
                         }
                     }
                 };
+                
+                // Track when user makes a selection
+                window.userSelectedImage = () => { userHasSelectedImage = true; };
+                window.userSelectedBio = () => { userHasSelectedBio = true; };
                 
                 // Create search functions that update live
                 const createSearch = (name, searchFn, timeout, statusKey, checkImage = false) => {
@@ -4043,6 +4057,9 @@
             if (!currentData) return;
             currentData.selectedImage = index;
             
+            // Track that user has made a selection (for live updates)
+            if (window.userSelectedImage) window.userSelectedImage();
+            
             // Update UI
             document.querySelectorAll('.image-option').forEach((el) => {
                 const elIndex = el.dataset.index;
@@ -4062,6 +4079,9 @@
         function selectBio(index) {
             if (!currentData) return;
             currentData.selectedBio = index;
+            
+            // Track that user has made a selection (for live updates)
+            if (window.userSelectedBio) window.userSelectedBio();
             
             // Update UI
             document.querySelectorAll('.bio-option').forEach((el) => {
