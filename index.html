@@ -6,7 +6,31 @@
     <title>The LitLyric Narrator Project</title>
     
 <!-- Firebase SDK (updated to 11.8.1 for AI Logic support) -->
-<script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-app-compat.js"></script>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
+    import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-ai.js";
+    
+    const firebaseConfig = {
+        apiKey: "AIzaSyDPKVYX_lPfpPMfwF0ViesSr0YizYZyAX8",
+        authDomain: "litlyric-narrator-batabase.firebaseapp.com",
+        projectId: "litlyric-narrator-batabase",
+        storageBucket: "litlyric-narrator-batabase.firebasestorage.app",
+        messagingSenderId: "312216800042",
+        appId: "1:312216800042:web:9b90057de27703b4b1ac53"
+    };
+    
+    // Initialize a separate modular app for AI (different name to avoid conflict)
+    const firebaseAppForAI = initializeApp(firebaseConfig, "ai-app");
+    const ai = getAI(firebaseAppForAI, { backend: new GoogleAIBackend() });
+    
+    window.firebaseAI = ai;
+    window.getGeminiModel = (modelName = "gemini-2.0-flash") => {
+        return getGenerativeModel(ai, { model: modelName });
+    };
+    window.firebaseAIReady = true;
+    window.dispatchEvent(new Event('firebaseAIReady'));
+    console.log("Firebase AI Logic initialized");
+</script>
 <script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-storage-compat.js"></script>
     
@@ -4544,7 +4568,7 @@ async function generateAIBio() {
         const ai = getAI(firebaseApp, { backend: new GoogleAIBackend() });
         
         // Create a GenerativeModel instance
-        const model = getGenerativeModel(ai, { model: "gemini-2.0-flash" });
+        const model = window.getGeminiModel("gemini-2.0-flash");
         
         // Gather available information about the narrator
         const existingBios = currentData.bios.map(b => `[${b.source}]: ${b.text}`).join('\n\n');
