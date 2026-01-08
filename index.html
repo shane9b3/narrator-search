@@ -1237,7 +1237,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v2.0.7</span>
+            <span class="version-badge">v2.0.8</span>
         </header>
 
         <div class="search-container">
@@ -1354,7 +1354,7 @@
             </div>
 
             <div class="profile-body">
-                <div class="section" id="awardsSection">
+              <!--  <div class="section" id="awardsSection">
                     <h3>🏆 Awards</h3>
                     <div class="tags-list" id="awardsList"></div>
                 </div>
@@ -1373,7 +1373,7 @@
                     <h3>📚 Notable Audiobooks</h3>
                     <div class="tags-list" id="worksList"></div>
                 </div>
-
+-->
                 <div class="sources-section">
                     <h4>Sources</h4>
                     <div class="sources-list" id="sourcesList"></div>
@@ -1381,25 +1381,32 @@
             </div>
             
             <!-- Export Section -->
-            <div class="export-section">
-                <h3>📤 Selected Data</h3>
-                <pre id="exportData"></pre>
-                
-                <!-- Buttons for NEW narrators (not in database) -->
-                <div id="newNarratorButtons" style="display: flex; flex-wrap: wrap; align-items: center;">
-                    <button class="export-btn" id="copyBtn">Copy JSON</button>
-                    <button class="firebase-btn" id="firebaseBtn" onclick="uploadToFirebase()">
-                        🔥 Upload to Firebase
-                    </button>
-                </div>
+<div class="export-section">
+    <!-- JSON display hidden for cleaner UI
+    <h3>📤 Selected Data</h3>
+    <pre id="exportData"></pre>
+    -->
+    <pre id="exportData" style="display: none;"></pre>
+    
+    <!-- Buttons for NEW narrators (not in database) -->
+    <div id="newNarratorButtons" style="display: flex; flex-wrap: wrap; align-items: center; justify-content: center;">
+        <!-- Copy JSON hidden for cleaner UI
+        <button class="export-btn" id="copyBtn">Copy JSON</button>
+        -->
+        <button class="firebase-btn" id="firebaseBtn" onclick="uploadToFirebase()">
+            ☁️ Submit to LitLyric Database
+        </button>
+    </div>
                 
                 <!-- Buttons for EXISTING narrators (already in database) -->
-                <div id="existingNarratorButtons" style="display: none; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
-                    <button class="export-btn" id="copyBtn2" onclick="copyJson()">Copy JSON</button>
-                    <button class="request-change-btn" id="requestChangeBtn" onclick="showRequestChangeModal()">
-                        📤 Submit Change Request
-                    </button>
-                </div>
+<div id="existingNarratorButtons" style="display: none; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: center;">
+    <!-- Copy JSON hidden for cleaner UI
+    <button class="export-btn" id="copyBtn2" onclick="copyJson()">Copy JSON</button>
+    -->
+    <button class="request-change-btn" id="requestChangeBtn" onclick="showRequestChangeModal()">
+        📤 Submit Change Request
+    </button>
+</div>
                 
                 <div class="firebase-status" id="firebaseStatus"></div>
                 <p style="font-size: 0.75rem; color: #6b7280; margin-top: 0.5rem; text-align: center;">
@@ -1476,10 +1483,10 @@
             </div>
         </div>
 
-        <div class="debug-panel" id="debugPanel">
+       <!-- <div class="debug-panel" id="debugPanel">
             <h4>Debug Log</h4>
             <div id="debugLog"></div>
-        </div>
+        </div>-->
     </div>
 
     <script>
