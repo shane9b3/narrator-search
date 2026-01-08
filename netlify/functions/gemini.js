@@ -46,24 +46,24 @@ exports.handler = async (event) => {
         }
 
         // Build the research prompt
-        const prompt = `Research the audiobook narrator "${narratorName}" using web search.
+        const prompt = `You are a professional bio writer. Research audiobook narrator "${narratorName}" and write their biography.
 
-Find information about:
-- Their narration career and experience
-- Notable audiobooks they've narrated
-- Any awards (Audie Awards, Earphones Awards, AudioFile Golden Voice, etc.)
-- Their voice style and genres they specialize in
-- Background (acting experience, training, etc.)
+SEARCH FOR:
+- Narration career and experience
+- Notable audiobooks narrated
+- Awards (Audie Awards, Earphones Awards, AudioFile Golden Voice, etc.)
+- Voice style and genre specialties
+- Background (acting, training, etc.)
 
-Then write a professional 3-4 sentence biography suitable for an audiobook platform like Audible or Libro.fm.
+STRICT OUTPUT RULES:
+1. Output ONLY the biography text - no introductions like "Here is" or explanations
+2. Write exactly 3-4 sentences
+3. Do NOT start with the narrator's name as the first word
+4. Use warm, professional tone suitable for Audible or Libro.fm
+5. No citation numbers like [1] or [2]
+6. No source URLs in the text
 
-Guidelines:
-- Use a warm, professional tone
-- Focus on their audiobook narration career
-- Only include facts you can verify from search results
-- Start directly with the bio (don't start with the narrator's name as the first word)
-- Do NOT include any citation numbers like [1] or [2] in the text
-- Do NOT include source URLs in the bio text`;
+RESPOND WITH ONLY THE BIO TEXT, NOTHING ELSE.`;
 
         // Call Gemini API with Google Search grounding
         const geminiResponse = await fetch(
@@ -174,6 +174,20 @@ Guidelines:
         // Clean up the bio text
         let bio = generatedText;
         
+        // Remove common AI preambles
+        const preamblePatterns = [
+            /^(?:Here(?:'s| is) (?:a |the )?(?:professional )?(?:biography|bio)[^:]*:\s*)/i,
+            /^(?:Ok,?\s*)?(?:I got|Here's what I found|Here's|Here is)[^:]*:\s*/i,
+            /^(?:Based on (?:the |your )?(?:provided |available )?(?:information|data|sources|my research|research)[^:]*:\s*)/i,
+            /^(?:Sure[,!]?\s*)?(?:Here(?:'s| is)[^:]*:\s*)/i,
+            /^(?:Certainly[,!]?\s*)?(?:Here(?:'s| is)[^:]*:\s*)/i,
+            /^(?:After researching[^:]*:\s*)/i,
+        ];
+        
+        for (const pattern of preamblePatterns) {
+            bio = bio.replace(pattern, '');
+        }
+        
         // Remove citation numbers like [1], [2], etc.
         bio = bio.replace(/\[\d+\]/g, '');
         
@@ -188,6 +202,20 @@ Guidelines:
             .replace(/\*/g, '')        // Remove italic
             .replace(/^#+\s*/gm, '')   // Remove headers
             .trim();
+        
+        // If bio still starts with meta-text, find the actual bio content
+        if (bio.toLowerCase().startsWith('here') || bio.toLowerCase().startsWith('ok') || bio.toLowerCase().startsWith('based on')) {
+            const sentences = bio.split(/(?<=[.!?])\s+/);
+            for (let i = 0; i < sentences.length; i++) {
+                const s = sentences[i].toLowerCase();
+                if (s.includes('narrator') || s.includes('voice') || s.includes('actor') || 
+                    s.includes('audiobook') || s.includes('award') || s.includes('trained') ||
+                    s.includes('acclaimed') || s.includes('known for')) {
+                    bio = sentences.slice(i).join(' ');
+                    break;
+                }
+            }
+        }
         
         // If bio is too long, get first paragraph or trim
         if (bio.length > 1000) {
