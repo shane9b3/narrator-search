@@ -3702,6 +3702,7 @@ async function fetchViaProxy(url) {
             suggestions.style.display = 'none';
             searchBtn.disabled = true;
             
+            existingNarratorData = null;
             // Reset firebase submit button
             const firebaseBtn = document.getElementById('firebaseBtn');
             if (firebaseBtn) {
