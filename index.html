@@ -1237,7 +1237,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v2.0.5</span>
+            <span class="version-badge">v2.0.6</span>
         </header>
 
         <div class="search-container">
@@ -1627,20 +1627,30 @@
             }
         }
 
-        async function fetchViaProxy(url) {
-    // Use YOUR OWN Netlify proxy - no more flaky public proxies!
+// REPLACE your fetchViaProxy function with this:
+
+async function fetchViaProxy(url) {
+    // Use YOUR OWN Netlify proxy
     const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
     
     try {
         const response = await fetch(proxyUrl);
         
+        // Only treat actual proxy errors as failures (400, 502, etc)
+        // 200 means proxy succeeded (even if target site returned 404)
         if (!response.ok) {
+            // Check if it's a JSON error response from our proxy
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Proxy error ${response.status}`);
+            }
             throw new Error(`Proxy returned ${response.status}`);
         }
         
         const contentType = response.headers.get('content-type') || '';
         
-        // Check if it's a JSON response (for images)
+        // Check if it's a JSON response (for images or errors)
         if (contentType.includes('application/json')) {
             const json = await response.json();
             // If it's an image response from our proxy
@@ -1654,9 +1664,14 @@
             return { ok: true, text: JSON.stringify(json) };
         }
         
-        // Text/HTML response
+        // Text/HTML response - proxy returns 200 even if target was 404
+        // We get the content and let the calling function decide if it's useful
         const text = await response.text();
-        return { ok: true, text };
+        
+        // Check original status from header (for debugging)
+        const originalStatus = response.headers.get('X-Original-Status');
+        
+        return { ok: true, text, originalStatus };
         
     } catch (error) {
         console.warn(`Proxy failed for ${url}:`, error.message);
