@@ -62,9 +62,8 @@ Guidelines:
 - Focus on their audiobook narration career
 - Only include facts you can verify from search results
 - Start directly with the bio (don't start with the narrator's name as the first word)
-- Do NOT include any source citations or URLs in the bio text itself
-
-After the bio, on a new line, list any source URLs you found (one per line, prefixed with "SOURCE: ").`;
+- Do NOT include any citation numbers like [1] or [2] in the text
+- Do NOT include source URLs in the bio text`;
 
         // Call Gemini API with Google Search grounding
         const geminiResponse = await fetch(
@@ -90,13 +89,19 @@ After the bio, on a new line, list any source URLs you found (one per line, pref
         );
 
         if (!geminiResponse.ok) {
-            const errorData = await geminiResponse.json();
-            console.error('Gemini API Error:', errorData);
+            const errorText = await geminiResponse.text();
+            console.error('Gemini API Error Response:', errorText);
+            let errorData;
+            try {
+                errorData = JSON.parse(errorText);
+            } catch (e) {
+                errorData = { message: errorText };
+            }
             return {
                 statusCode: geminiResponse.status,
                 headers: { 'Access-Control-Allow-Origin': '*' },
                 body: JSON.stringify({ 
-                    error: errorData.error?.message || 'Gemini API error',
+                    error: errorData.error?.message || errorData.message || 'Gemini API error',
                     details: errorData
                 })
             };
@@ -104,21 +109,55 @@ After the bio, on a new line, list any source URLs you found (one per line, pref
 
         const data = await geminiResponse.json();
         
-        // Extract the generated text
-        let generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        // Log full response for debugging
+        console.log('Full Gemini Response:', JSON.stringify(data, null, 2));
+        
+        // CORRECT PATH: candidates[0].content.parts[0].text
+        const candidate = data.candidates?.[0];
+        if (!candidate) {
+            return {
+                statusCode: 500,
+                headers: { 'Access-Control-Allow-Origin': '*' },
+                body: JSON.stringify({ 
+                    error: 'No candidates in response',
+                    rawResponse: data
+                })
+            };
+        }
+        
+        // Get the text from content.parts[0].text
+        const content = candidate.content;
+        const parts = content?.parts;
+        let generatedText = '';
+        
+        if (parts && parts.length > 0) {
+            // Combine all text parts
+            generatedText = parts
+                .filter(part => part.text)
+                .map(part => part.text)
+                .join('\n')
+                .trim();
+        }
         
         if (!generatedText) {
             return {
                 statusCode: 500,
                 headers: { 'Access-Control-Allow-Origin': '*' },
-                body: JSON.stringify({ error: 'No response generated from Gemini' })
+                body: JSON.stringify({ 
+                    error: 'No text generated',
+                    candidate: candidate,
+                    rawResponse: data
+                })
             };
         }
 
         // Check for grounding metadata
-        const groundingMetadata = data.candidates?.[0]?.groundingMetadata;
+        const groundingMetadata = candidate.groundingMetadata;
         const groundingChunks = groundingMetadata?.groundingChunks || [];
         const webSearchQueries = groundingMetadata?.webSearchQueries || [];
+        
+        console.log('Grounding used:', groundingChunks.length > 0);
+        console.log('Search queries:', webSearchQueries);
         
         // Extract sources from grounding metadata
         let sources = [];
@@ -129,59 +168,40 @@ After the bio, on a new line, list any source URLs you found (one per line, pref
                     url: chunk.web.uri,
                     title: chunk.web.title || ''
                 }));
+            console.log('Sources found:', sources.length);
         }
 
-        // Parse bio and any inline sources from text
+        // Clean up the bio text
         let bio = generatedText;
-        const inlineSources = [];
         
-        // Check for SOURCE: lines at end
-        const sourcePattern = /\n\s*SOURCE:\s*(https?:\/\/[^\s]+)/gi;
-        let match;
-        while ((match = sourcePattern.exec(generatedText)) !== null) {
-            inlineSources.push(match[1]);
-        }
+        // Remove citation numbers like [1], [2], etc.
+        bio = bio.replace(/\[\d+\]/g, '');
         
-        // Remove source lines from bio
-        bio = bio.replace(/\n\s*SOURCE:.*$/gim, '').trim();
+        // Remove source lines if present
+        bio = bio.replace(/\n\s*SOURCE:.*$/gim, '');
+        bio = bio.replace(/\n\s*Sources?:[\s\S]*$/im, '');
+        bio = bio.replace(/\n\s*References?:[\s\S]*$/im, '');
         
-        // Also try to split on common source section headers
-        const sourceSectionPatterns = [
-            /\n\n(?:Sources?|References?|Citations?):\s*\n/i,
-            /\n\n\*\*(?:Sources?|References?)\*\*\s*\n/i,
-            /\n---\n/,
-        ];
-        
-        for (const pattern of sourceSectionPatterns) {
-            if (pattern.test(bio)) {
-                const parts = bio.split(pattern);
-                bio = parts[0].trim();
-                break;
-            }
-        }
-        
-        // Clean up the bio
+        // Remove markdown formatting
         bio = bio
             .replace(/\*\*/g, '')      // Remove bold
             .replace(/\*/g, '')        // Remove italic
             .replace(/^#+\s*/gm, '')   // Remove headers
-            .replace(/\[\d+\]/g, '')   // Remove citation numbers
             .trim();
         
-        // If bio is too long, try to get first paragraph or trim sentences
-        const paragraphs = bio.split(/\n\n+/);
-        if (paragraphs[0].length >= 150 && paragraphs[0].length <= 800) {
-            bio = paragraphs[0];
-        } else if (bio.length > 1000) {
-            const sentences = bio.match(/[^.!?]+[.!?]+/g) || [bio];
-            bio = sentences.slice(0, 4).join(' ').trim();
+        // If bio is too long, get first paragraph or trim
+        if (bio.length > 1000) {
+            const paragraphs = bio.split(/\n\n+/);
+            if (paragraphs[0].length >= 150 && paragraphs[0].length <= 800) {
+                bio = paragraphs[0];
+            } else {
+                const sentences = bio.match(/[^.!?]+[.!?]+/g) || [bio];
+                bio = sentences.slice(0, 4).join(' ').trim();
+            }
         }
 
-        // Combine all sources
-        const allSources = [
-            ...sources.map(s => s.url),
-            ...inlineSources
-        ].filter((url, index, self) => self.indexOf(url) === index); // Dedupe
+        // Clean up extra whitespace
+        bio = bio.replace(/\s+/g, ' ').trim();
 
         return {
             statusCode: 200,
@@ -191,7 +211,8 @@ After the bio, on a new line, list any source URLs you found (one per line, pref
             },
             body: JSON.stringify({
                 bio: bio,
-                sources: allSources,
+                sources: sources.map(s => s.url),
+                sourceTitles: sources.map(s => s.title),
                 groundingUsed: groundingChunks.length > 0,
                 searchQueries: webSearchQueries,
                 model: 'gemini-2.0-flash'
@@ -203,7 +224,10 @@ After the bio, on a new line, list any source URLs you found (one per line, pref
         return {
             statusCode: 500,
             headers: { 'Access-Control-Allow-Origin': '*' },
-            body: JSON.stringify({ error: error.message })
+            body: JSON.stringify({ 
+                error: error.message,
+                stack: error.stack
+            })
         };
     }
 };
