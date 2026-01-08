@@ -2740,7 +2740,7 @@
 
         // Search IMDB for image (many narrators are also actors)
         async function searchIMDB(name) {
-            log(`IMDB: Searching for ${name}`);
+            log(`IMDB: Starting search for "${name}"`, 'info');
 
             try {
                 let profilePath = null;
@@ -3781,12 +3781,13 @@
                 
                 // Core sources (always search these)
                 const coreSearches = [
-                    createSearch('Audible', searchAudible(narratorName), 45000, 'audible'),
-                    createSearch('Wikipedia', searchWikipedia(narratorName), 45000, 'wikipedia'),
-                    createSearch('AudioFile', searchAudioFile(narratorName), 45000, 'audiofile'),
-                    createSearch('Tantor', searchTantor(narratorName), 30000, 'tantor'),
-                    createSearch('IMDB', searchIMDB(narratorName), 45000, 'imdb', true)
-                ];
+    createSearch('Audible', searchAudible(narratorName), 45000, 'audible'),
+    createSearch('Wikipedia', searchWikipedia(narratorName), 45000, 'wikipedia'),
+    createSearch('AudioFile', searchAudioFile(narratorName), 45000, 'audiofile'),
+    createSearch('Tantor', searchTantor(narratorName), 30000, 'tantor'),
+    createSearch('IMDB', searchIMDB(narratorName), 45000, 'imdb', true),
+    createSearch('Google', searchGoogle(narratorName), 30000, 'google', true)
+];
                 
                 // Additional sources (skip in fast mode)
                 const additionalSearches = fastMode ? [] : [
@@ -3813,21 +3814,7 @@
                 // Check if we have any image at all
                 let hasImage = liveResults.some(r => r?.imageUrl);
                 
-                // If still no image, try Google as last resort
-                if (!hasImage) {
-                    log('No image found, trying Google...', 'info');
-                    updateSourceStatus('google', 'searching');
-                    try {
-                        const googleResult = await fetchWithTimeout(searchGoogle(narratorName), 30000);
-                        updateSourceStatus('google', googleResult ? 'found' : 'not-found');
-                        if (googleResult) {
-                            liveResults.push(googleResult);
-                        }
-                    } catch (e) {
-                        updateSourceStatus('google', 'not-found');
-                        log(`Google: Timeout or error`, 'warning');
-                    }
-                }
+            
                 
                 const merged = mergeResults(narratorName, liveResults.filter(r => r));
                 
