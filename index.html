@@ -5,7 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>The LitLyric Narrator Project</title>
     
-<!-- Firebase SDK (updated to 11.8.1 for AI Logic support) -->
+<!-- STEP 1: Load Firebase Compat SDK FIRST -->
+<script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-storage-compat.js"></script>
+
+<!-- STEP 2: Load Firebase AI as ES Module (separate app instance) -->
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
     import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-ai.js";
@@ -19,7 +24,7 @@
         appId: "1:312216800042:web:9b90057de27703b4b1ac53"
     };
     
-    // Initialize a separate modular app for AI (different name to avoid conflict)
+    // Separate modular app for AI (different name avoids conflict)
     const firebaseAppForAI = initializeApp(firebaseConfig, "ai-app");
     const ai = getAI(firebaseAppForAI, { backend: new GoogleAIBackend() });
     
@@ -31,8 +36,6 @@
     window.dispatchEvent(new Event('firebaseAIReady'));
     console.log("Firebase AI Logic initialized");
 </script>
-<script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-storage-compat.js"></script>
     
     <style>
         * {
@@ -1254,17 +1257,6 @@
             to { transform: rotate(360deg); }
         }
     </style>
-
-    <!-- Firebase AI Logic SDK (loaded as ES module) -->
-<script type="module">
-    import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-ai.js";
-    
-    // Make Firebase AI functions available globally
-    window.FirebaseAI = { getAI, getGenerativeModel, GoogleAIBackend };
-    
-    // Signal that Firebase AI is ready
-    window.dispatchEvent(new Event('firebaseAIReady'));
-</script>
 </head>
 <body>
     <div class="container">
@@ -1272,7 +1264,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v2.0.1</span>
+            <span class="version-badge">v2.0.2</span>
         </header>
 
         <div class="search-container">
@@ -4541,7 +4533,6 @@
             }
         });
 
-// AI Bio Generation using Firebase AI Logic
 async function generateAIBio() {
     if (!currentData) {
         log('No narrator data available', 'error');
@@ -4556,19 +4547,26 @@ async function generateAIBio() {
     log('Starting AI bio generation with Firebase AI...', 'info');
     
     try {
-        // Check if Firebase AI is loaded
-        if (!window.FirebaseAI) {
-            throw new Error('Firebase AI not loaded yet. Please wait a moment and try again.');
+        // Check if Firebase AI is ready (uses global helper set by module script)
+        if (!window.firebaseAIReady || !window.getGeminiModel) {
+            // Wait for it to load
+            log('Waiting for Firebase AI to initialize...', 'info');
+            await new Promise((resolve, reject) => {
+                if (window.firebaseAIReady) {
+                    resolve();
+                    return;
+                }
+                const timeout = setTimeout(() => reject(new Error('Firebase AI load timeout')), 10000);
+                window.addEventListener('firebaseAIReady', () => {
+                    clearTimeout(timeout);
+                    resolve();
+                }, { once: true });
+            });
         }
         
-        // Initialize Firebase AI
-        const { getAI, getGenerativeModel, GoogleAIBackend } = window.FirebaseAI;
-        
-        // Get the Firebase app instance (already initialized for Firestore)
-        const ai = getAI(firebaseApp, { backend: new GoogleAIBackend() });
-        
-        // Create a GenerativeModel instance
+        // Get the Gemini model using the global helper
         const model = window.getGeminiModel("gemini-2.0-flash");
+        log('Got Gemini model, preparing prompt...', 'info');
         
         // Gather available information about the narrator
         const existingBios = currentData.bios.map(b => `[${b.source}]: ${b.text}`).join('\n\n');
@@ -4601,7 +4599,7 @@ Guidelines:
         const generatedBio = response.text().trim();
         
         if (!generatedBio) {
-            throw new Error('No bio generated');
+            throw new Error('No bio generated - empty response');
         }
         
         log(`AI bio generated: ${generatedBio.length} chars`, 'success');
@@ -4630,17 +4628,21 @@ Guidelines:
         
         btn.textContent = '✗ Failed';
         
-        // Show more helpful error message
+        // Show helpful error message
         let errorMsg = error.message;
-        if (error.message.includes('not loaded')) {
-            errorMsg = 'Firebase AI is still loading. Please try again in a moment.';
+        if (error.message.includes('not available') || error.message.includes('Service AI')) {
+            errorMsg = 'Firebase AI not enabled. Go to Firebase Console → AI Logic → Settings → Enable Gemini Developer API';
+        } else if (error.message.includes('timeout')) {
+            errorMsg = 'Firebase AI took too long to load. Please refresh and try again.';
         } else if (error.message.includes('quota') || error.message.includes('limit')) {
             errorMsg = 'API quota exceeded. Please try again later.';
         } else if (error.message.includes('blocked') || error.message.includes('safety')) {
             errorMsg = 'Content was blocked by safety filters. Try a different narrator.';
+        } else if (error.message.includes('container')) {
+            errorMsg = 'Firebase AI initialization failed. Make sure AI Logic is enabled in Firebase Console.';
         }
         
-        showFirebaseStatus(`AI generation failed: ${errorMsg}`, 'error');
+        showFirebaseStatus(errorMsg, 'error');
         
         setTimeout(() => {
             btn.textContent = '✨ Generate Bio with AI';
@@ -4649,6 +4651,7 @@ Guidelines:
         }, 3000);
     }
 }
+
         
         // Re-render bio options (used after AI generation)
         function renderBioOptions() {
