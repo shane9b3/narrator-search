@@ -4575,21 +4575,13 @@ async function generateAIBio() {
         const books = currentData.books?.slice(0, 10).join(', ') || 'Not available';
         
         // Build the prompt
-        const prompt = `Write a professional biography for audiobook narrator "${currentData.name}".
-
-Available information:
-- Awards: ${awards}
-- Genres: ${genres}
-- Notable works: ${books}
-
-${existingBios ? `Reference bios from various sources:\n${existingBios}` : ''}
+        const prompt = `"${currentData.name}" narrator 3-5 sentnces for audiobook bio.
 
 Guidelines:
-- Write approximately 3-4 sentences
+- Write approximately 3-5 sentences
 - Use a warm, professional tone suitable for an audiobook platform
 - Focus on their narration career and style
-- Do not make up specific facts not mentioned in the sources
-- Start directly with content (don't start with the narrator's name)`;
+- Do not make up specific facts not mentioned in the sources;
 
         log('Sending prompt to Gemini...', 'info');
         
