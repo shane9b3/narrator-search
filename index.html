@@ -5,37 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>The LitLyric Narrator Project</title>
     
-<!-- STEP 1: Load Firebase Compat SDK FIRST -->
+<!-- Firebase SDK - Compat version for Firestore/Storage -->
 <script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-storage-compat.js"></script>
-
-<!-- STEP 2: Load Firebase AI as ES Module (separate app instance) -->
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
-    import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-ai.js";
-    
-    const firebaseConfig = {
-        apiKey: "AIzaSyDPKVYX_lPfpPMfwF0ViesSr0YizYZyAX8",
-        authDomain: "litlyric-narrator-batabase.firebaseapp.com",
-        projectId: "litlyric-narrator-batabase",
-        storageBucket: "litlyric-narrator-batabase.firebasestorage.app",
-        messagingSenderId: "312216800042",
-        appId: "1:312216800042:web:9b90057de27703b4b1ac53"
-    };
-    
-    // Separate modular app for AI (different name avoids conflict)
-    const firebaseAppForAI = initializeApp(firebaseConfig, "ai-app");
-    const ai = getAI(firebaseAppForAI, { backend: new GoogleAIBackend() });
-    
-    window.firebaseAI = ai;
-    window.getGeminiModel = (modelName = "gemini-2.0-flash") => {
-        return getGenerativeModel(ai, { model: modelName });
-    };
-    window.firebaseAIReady = true;
-    window.dispatchEvent(new Event('firebaseAIReady'));
-    console.log("Firebase AI Logic initialized");
-</script>
     
     <style>
         * {
@@ -4542,102 +4515,101 @@ async function generateAIBio() {
     const btn = document.getElementById('aiGenerateBtn');
     btn.disabled = true;
     btn.classList.add('generating');
-    btn.textContent = '✨ Generating...';
+    btn.textContent = '🔍 Researching...';
     
-    log('Starting AI bio generation with Firebase AI...', 'info');
+    log('Starting AI research with Gemini + Google Search...', 'info');
     
     try {
-        // Check if Firebase AI is ready (uses global helper set by module script)
-        if (!window.firebaseAIReady || !window.getGeminiModel) {
-            // Wait for it to load
-            log('Waiting for Firebase AI to initialize...', 'info');
-            await new Promise((resolve, reject) => {
-                if (window.firebaseAIReady) {
-                    resolve();
-                    return;
-                }
-                const timeout = setTimeout(() => reject(new Error('Firebase AI load timeout')), 10000);
-                window.addEventListener('firebaseAIReady', () => {
-                    clearTimeout(timeout);
-                    resolve();
-                }, { once: true });
-            });
+        // Call our Netlify serverless function
+        const response = await fetch('/api/gemini', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                narratorName: currentData.name
+            })
+        });
+        
+        btn.textContent = '✨ Writing bio...';
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `API error: ${response.status}`);
         }
         
-        // Get the Gemini model using the global helper
-        const model = window.getGeminiModel("gemini-2.0-flash");
-        log('Got Gemini model, preparing prompt...', 'info');
+        const data = await response.json();
+        console.log('Gemini Response:', data); // Debug log
         
-        // Gather available information about the narrator
-        const existingBios = currentData.bios.map(b => `[${b.source}]: ${b.text}`).join('\n\n');
-        const awards = currentData.awards?.join(', ') || 'None listed';
-        const genres = currentData.genres?.join(', ') || 'Various';
-        const books = currentData.books?.slice(0, 10).join(', ') || 'Not available';
-        
-        // Build the prompt
-        const prompt = `"${currentData.name}" narrator 3-5 sentnces for audiobook bio.
-
-Guidelines:
-- Write approximately 3-5 sentences
-- Use a warm, professional tone suitable for an audiobook platform
-- Focus on their narration career and style
-- Do not make up specific facts not mentioned in the sources`;
-
-        log('Sending prompt to Gemini...', 'info');
-        
-        // Generate content
-        const result = await model.generateContent(prompt);
-        const response = result.response;
-        const generatedBio = response.text().trim();
-        
-        if (!generatedBio) {
-            throw new Error('No bio generated - empty response');
+        if (!data.bio) {
+            throw new Error('No bio generated');
         }
         
-        log(`AI bio generated: ${generatedBio.length} chars`, 'success');
+        const bio = data.bio;
+        const sources = data.sources || [];
+        
+        log(`AI bio generated: ${bio.length} chars`, 'success');
+        
+        if (data.groundingUsed) {
+            log('Google Search grounding was used!', 'success');
+        }
+        
+        if (sources.length > 0) {
+            log(`Found ${sources.length} sources`, 'info');
+            console.log('Sources:', sources);
+        }
         
         // Add to bios list
-        currentData.bios.unshift({
-            source: 'AI Generated (Gemini)',
-            text: generatedBio,
-            length: generatedBio.length
-        });
+        const bioEntry = {
+            source: 'AI Research (Gemini + Google)',
+            text: bio,
+            length: bio.length
+        };
+        
+        if (sources.length > 0) {
+            bioEntry.researchSources = sources;
+        }
+        
+        currentData.bios.unshift(bioEntry);
         
         // Re-render bio options and select the AI one
         renderBioOptions();
         selectBio(0);
         
         btn.textContent = '✓ Generated!';
+        
+        if (sources.length > 0) {
+            showFirebaseStatus(`Bio created from ${sources.length} web sources`, 'success');
+        } else {
+            showFirebaseStatus('Bio generated successfully', 'success');
+        }
+        
         setTimeout(() => {
-            btn.textContent = '✨ Generate Bio with AI';
+            btn.textContent = '🔍 Research & Generate Bio';
             btn.disabled = false;
             btn.classList.remove('generating');
         }, 2000);
         
     } catch (error) {
-        log(`AI generation failed: ${error.message}`, 'error');
-        console.error('Firebase AI Error:', error);
+        log(`AI research failed: ${error.message}`, 'error');
+        console.error('Gemini API Error:', error);
         
         btn.textContent = '✗ Failed';
         
         // Show helpful error message
         let errorMsg = error.message;
-        if (error.message.includes('not available') || error.message.includes('Service AI')) {
-            errorMsg = 'Firebase AI not enabled. Go to Firebase Console → AI Logic → Settings → Enable Gemini Developer API';
-        } else if (error.message.includes('timeout')) {
-            errorMsg = 'Firebase AI took too long to load. Please refresh and try again.';
-        } else if (error.message.includes('quota') || error.message.includes('limit')) {
-            errorMsg = 'API quota exceeded. Please try again later.';
+        if (error.message.includes('GEMINI_API_KEY')) {
+            errorMsg = 'Gemini API key not configured. Add GEMINI_API_KEY to Netlify environment variables.';
+        } else if (error.message.includes('quota') || error.message.includes('limit') || error.message.includes('429')) {
+            errorMsg = 'API quota exceeded. Try again later.';
         } else if (error.message.includes('blocked') || error.message.includes('safety')) {
-            errorMsg = 'Content was blocked by safety filters. Try a different narrator.';
-        } else if (error.message.includes('container')) {
-            errorMsg = 'Firebase AI initialization failed. Make sure AI Logic is enabled in Firebase Console.';
+            errorMsg = 'Content was blocked by safety filters.';
         }
         
         showFirebaseStatus(errorMsg, 'error');
         
         setTimeout(() => {
-            btn.textContent = '✨ Generate Bio with AI';
+            btn.textContent = '🔍 Research & Generate Bio';
             btn.disabled = false;
             btn.classList.remove('generating');
         }, 3000);
