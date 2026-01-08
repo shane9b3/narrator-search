@@ -45,25 +45,23 @@ exports.handler = async (event) => {
             };
         }
 
-        // Build the research prompt
-        const prompt = `You are a professional bio writer. Research audiobook narrator "${narratorName}" and write their biography.
+        // Build the research prompt - let Gemini do the research via grounding
+        const prompt = `Research audiobook narrator "${narratorName}" and write a professional biography.
 
-SEARCH FOR:
-- Narration career and experience
-- Notable audiobooks narrated
-- Awards (Audie Awards, Earphones Awards, AudioFile Golden Voice, etc.)
-- Voice style and genre specialties
-- Background (acting, training, etc.)
+FOCUS ON:
+- Their audiobook narration work
+- Notable titles they've narrated
+- Awards (Audie, Earphones, Golden Voice)
+- Genres they specialize in
 
-STRICT OUTPUT RULES:
-1. Output ONLY the biography text - no introductions like "Here is" or explanations
-2. Write exactly 3-4 sentences
-3. Do NOT start with the narrator's name as the first word
-4. Use warm, professional tone suitable for Audible or Libro.fm
-5. No citation numbers like [1] or [2]
-6. No source URLs in the text
+STRICT RULES:
+1. Write 3-5 sentences, focusing on narration career
+2. Output ONLY the bio text - no "Here is" or explanations
+3. Do NOT start with the narrator's name
+4. Professional tone for Audible/Libro.fm
+5. No citations [1] or URLs
 
-RESPOND WITH ONLY THE BIO TEXT, NOTHING ELSE.`;
+BIO:`;
 
         // Call Gemini API with Google Search grounding
         const geminiResponse = await fetch(
