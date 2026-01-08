@@ -47,6 +47,9 @@ exports.handler = async (event) => {
     }
 
     try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 25000); // 25 second timeout
+        
         const response = await fetch(targetUrl, {
             method: 'GET',
             headers: {
@@ -55,7 +58,10 @@ exports.handler = async (event) => {
                 'Accept-Language': 'en-US,en;q=0.5',
             },
             redirect: 'follow',
+            signal: controller.signal,
         });
+        
+        clearTimeout(timeout);
 
         const contentType = response.headers.get('content-type') || 'text/plain';
         
@@ -71,19 +77,24 @@ exports.handler = async (event) => {
                 },
                 body: JSON.stringify({
                     contentType,
-                    base64: `data:${contentType};base64,${base64}`
+                    base64: `data:${contentType};base64,${base64}`,
+                    originalStatus: response.status
                 })
             };
         }
 
-        // For text/html, return as text
+        // For text/html, ALWAYS return 200 with content
+        // Let the calling code decide if the content is useful
         const text = await response.text();
         
+        // Return 200 even if target returned 404/500
+        // Include original status in a header for debugging
         return {
-            statusCode: response.status,
+            statusCode: 200,
             headers: {
                 ...corsHeaders,
-                'Content-Type': contentType.startsWith('application/json') ? 'application/json' : 'text/plain'
+                'Content-Type': 'text/plain',
+                'X-Original-Status': response.status.toString()
             },
             body: text
         };
