@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>The LitLyric Narrator Project</title>
     
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+<!-- Firebase SDK (updated to 11.8.1 for AI Logic support) -->
+<script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.8.1/firebase-storage-compat.js"></script>
     
     <style>
         * {
@@ -1230,6 +1230,17 @@
             to { transform: rotate(360deg); }
         }
     </style>
+
+    <!-- Firebase AI Logic SDK (loaded as ES module) -->
+<script type="module">
+    import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-ai.js";
+    
+    // Make Firebase AI functions available globally
+    window.FirebaseAI = { getAI, getGenerativeModel, GoogleAIBackend };
+    
+    // Signal that Firebase AI is ready
+    window.dispatchEvent(new Event('firebaseAIReady'));
+</script>
 </head>
 <body>
     <div class="container">
@@ -1237,7 +1248,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v1.9.8</span>
+            <span class="version-badge">v2.0.0</span>
         </header>
 
         <div class="search-container">
@@ -1348,8 +1359,8 @@
                         ✨ Generate Bio with AI
                     </button>
                     <p style="font-size: 0.75rem; color: #6b7280; margin-top: 0.5rem;">
-                        Uses AI to create a professional narrator bio from available information
-                    </p>
+    Uses Firebase AI (Gemini) to create a professional narrator bio
+</p>
                 </div>
             </div>
 
@@ -4506,107 +4517,114 @@
             }
         });
 
-        // AI Bio Generation
-        async function generateAIBio() {
-            if (!currentData) {
-                log('No narrator data available', 'error');
-                return;
-            }
-            
-            const btn = document.getElementById('aiGenerateBtn');
-            btn.disabled = true;
-            btn.classList.add('generating');
-            btn.textContent = '✨ Generating...';
-            
-            log('Starting AI bio generation...', 'info');
-            
-            try {
-                // Gather all available information about the narrator
-                const existingBios = currentData.bios.map(b => `[${b.source}]: ${b.text}`).join('\n\n');
-                const awards = currentData.awards?.join(', ') || '';
-                const genres = currentData.genres?.join(', ') || '';
-                const books = currentData.books?.slice(0, 10).join(', ') || '';
-                
-                // Randomize the style slightly
-                const styles = [
-                    'conversational and warm',
-                    'professional yet personable', 
-                    'engaging and descriptive',
-                    'concise and informative'
-                ];
-                const randomStyle = styles[Math.floor(Math.random() * styles.length)];
-                
-                const openings = [
-                    'Start with what makes them unique.',
-                    'Lead with their most notable achievement or characteristic.',
-                    'Begin by setting the scene of their career.',
-                    'Open with their signature style or specialty.'
-                ];
-                const randomOpening = openings[Math.floor(Math.random() * openings.length)];
-                
-                const prompt = `"${currentData.name}" narrator bio approximately 4 sentences.`;
-
-                // Use Netlify serverless function (API key hidden on server)
-                const response = await fetch('/api/gemini', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        contents: [{
-                            parts: [{ text: prompt }]
-                        }],
-                        generationConfig: {
-                            temperature: 0.9,
-                            maxOutputTokens: 400
-                        }
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (!response.ok) {
-                    log(`AI API error: ${response.status} - ${JSON.stringify(data)}`, 'error');
-                    throw new Error(`AI API failed: ${data.error?.message || response.status}`);
-                }
-                
-                const generatedBio = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-                
-                if (!generatedBio) {
-                    log(`AI response structure: ${JSON.stringify(data).substring(0, 200)}`, 'error');
-                    throw new Error('No bio generated');
-                }
-                
-                log(`AI bio generated: ${generatedBio.length} chars`, 'success');
-                
-                // Add to bios list
-                currentData.bios.unshift({
-                    source: 'AI Generated',
-                    text: generatedBio,
-                    length: generatedBio.length
-                });
-                
-                // Re-render bio options and select the AI one
-                renderBioOptions();
-                selectBio(0);
-                
-                btn.textContent = '✓ Generated!';
-                setTimeout(() => {
-                    btn.textContent = '✨ Generate Bio with AI';
-                    btn.disabled = false;
-                    btn.classList.remove('generating');
-                }, 2000);
-                
-            } catch (error) {
-                log(`AI generation failed: ${error.message}`, 'error');
-                btn.textContent = '✗ Failed';
-                setTimeout(() => {
-                    btn.textContent = '✨ Generate Bio with AI';
-                    btn.disabled = false;
-                    btn.classList.remove('generating');
-                }, 2000);
-            }
+// AI Bio Generation using Firebase AI Logic
+async function generateAIBio() {
+    if (!currentData) {
+        log('No narrator data available', 'error');
+        return;
+    }
+    
+    const btn = document.getElementById('aiGenerateBtn');
+    btn.disabled = true;
+    btn.classList.add('generating');
+    btn.textContent = '✨ Generating...';
+    
+    log('Starting AI bio generation with Firebase AI...', 'info');
+    
+    try {
+        // Check if Firebase AI is loaded
+        if (!window.FirebaseAI) {
+            throw new Error('Firebase AI not loaded yet. Please wait a moment and try again.');
         }
+        
+        // Initialize Firebase AI
+        const { getAI, getGenerativeModel, GoogleAIBackend } = window.FirebaseAI;
+        
+        // Get the Firebase app instance (already initialized for Firestore)
+        const ai = getAI(firebaseApp, { backend: new GoogleAIBackend() });
+        
+        // Create a GenerativeModel instance
+        const model = getGenerativeModel(ai, { model: "gemini-2.0-flash" });
+        
+        // Gather available information about the narrator
+        const existingBios = currentData.bios.map(b => `[${b.source}]: ${b.text}`).join('\n\n');
+        const awards = currentData.awards?.join(', ') || 'None listed';
+        const genres = currentData.genres?.join(', ') || 'Various';
+        const books = currentData.books?.slice(0, 10).join(', ') || 'Not available';
+        
+        // Build the prompt
+        const prompt = `Write a professional biography for audiobook narrator "${currentData.name}".
+
+Available information:
+- Awards: ${awards}
+- Genres: ${genres}
+- Notable works: ${books}
+
+${existingBios ? `Reference bios from various sources:\n${existingBios}` : ''}
+
+Guidelines:
+- Write approximately 3-4 sentences
+- Use a warm, professional tone suitable for an audiobook platform
+- Focus on their narration career and style
+- Do not make up specific facts not mentioned in the sources
+- Start directly with content (don't start with the narrator's name)`;
+
+        log('Sending prompt to Gemini...', 'info');
+        
+        // Generate content
+        const result = await model.generateContent(prompt);
+        const response = result.response;
+        const generatedBio = response.text().trim();
+        
+        if (!generatedBio) {
+            throw new Error('No bio generated');
+        }
+        
+        log(`AI bio generated: ${generatedBio.length} chars`, 'success');
+        
+        // Add to bios list
+        currentData.bios.unshift({
+            source: 'AI Generated (Gemini)',
+            text: generatedBio,
+            length: generatedBio.length
+        });
+        
+        // Re-render bio options and select the AI one
+        renderBioOptions();
+        selectBio(0);
+        
+        btn.textContent = '✓ Generated!';
+        setTimeout(() => {
+            btn.textContent = '✨ Generate Bio with AI';
+            btn.disabled = false;
+            btn.classList.remove('generating');
+        }, 2000);
+        
+    } catch (error) {
+        log(`AI generation failed: ${error.message}`, 'error');
+        console.error('Firebase AI Error:', error);
+        
+        btn.textContent = '✗ Failed';
+        
+        // Show more helpful error message
+        let errorMsg = error.message;
+        if (error.message.includes('not loaded')) {
+            errorMsg = 'Firebase AI is still loading. Please try again in a moment.';
+        } else if (error.message.includes('quota') || error.message.includes('limit')) {
+            errorMsg = 'API quota exceeded. Please try again later.';
+        } else if (error.message.includes('blocked') || error.message.includes('safety')) {
+            errorMsg = 'Content was blocked by safety filters. Try a different narrator.';
+        }
+        
+        showFirebaseStatus(`AI generation failed: ${errorMsg}`, 'error');
+        
+        setTimeout(() => {
+            btn.textContent = '✨ Generate Bio with AI';
+            btn.disabled = false;
+            btn.classList.remove('generating');
+        }, 3000);
+    }
+}
         
         // Re-render bio options (used after AI generation)
         function renderBioOptions() {
