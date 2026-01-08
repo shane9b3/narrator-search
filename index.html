@@ -1237,7 +1237,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v2.0.8</span>
+            <span class="version-badge">v2.0.9</span>
         </header>
 
         <div class="search-container">
@@ -1620,12 +1620,17 @@
 }
 
         function log(message, type = 'info') {
-            const entry = document.createElement('div');
-            entry.className = `debug-entry ${type}`;
-            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-            debugLog.appendChild(entry);
-            debugLog.scrollTop = debugLog.scrollHeight;
-        }
+    // Debug panel may be hidden/removed - just log to console
+    console.log(`[${type.toUpperCase()}] ${message}`);
+    
+    if (debugLog) {
+        const entry = document.createElement('div');
+        entry.className = `debug-entry ${type}`;
+        entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+        debugLog.appendChild(entry);
+        debugLog.scrollTop = debugLog.scrollHeight;
+    }
+}
 
         function updateSourceStatus(sourceKey, status) {
             const el = document.getElementById(`status-${sourceKey}`);
@@ -3700,7 +3705,7 @@ async function fetchViaProxy(url) {
             }
 
             // Reset UI
-            debugLog.innerHTML = '';
+            if (debugLog) debugLog.innerHTML = '';
             loading.classList.add('active');
             resultCard.classList.remove('active');
             document.getElementById('existingProfileCard').style.display = 'none';
@@ -4260,14 +4265,16 @@ async function fetchViaProxy(url) {
         }
 
         // Copy button handler
-        document.getElementById('copyBtn').addEventListener('click', () => {
-            const exportText = document.getElementById('exportData').textContent;
-            navigator.clipboard.writeText(exportText).then(() => {
-                const btn = document.getElementById('copyBtn');
-                btn.textContent = 'Copied!';
-                setTimeout(() => btn.textContent = 'Copy JSON', 2000);
-            });
+        const copyBtn = document.getElementById('copyBtn');
+if (copyBtn) {
+    copyBtn.addEventListener('click', () => {
+        const exportText = document.getElementById('exportData').textContent;
+        navigator.clipboard.writeText(exportText).then(() => {
+            copyBtn.textContent = 'Copied!';
+            setTimeout(() => copyBtn.textContent = 'Copy JSON', 2000);
         });
+    });
+}
 
         function showError(message) {
             errorMessage.textContent = message;
