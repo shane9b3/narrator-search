@@ -1237,7 +1237,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v2.0.6</span>
+            <span class="version-badge">v2.0.7</span>
         </header>
 
         <div class="search-container">
@@ -1636,16 +1636,15 @@ async function fetchViaProxy(url) {
     try {
         const response = await fetch(proxyUrl);
         
-        // Only treat actual proxy errors as failures (400, 502, etc)
-        // 200 means proxy succeeded (even if target site returned 404)
-        if (!response.ok) {
-            // Check if it's a JSON error response from our proxy
-            const contentType = response.headers.get('content-type') || '';
-            if (contentType.includes('application/json')) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || `Proxy error ${response.status}`);
-            }
-            throw new Error(`Proxy returned ${response.status}`);
+        // Only treat actual proxy errors as failures (502 = network error)
+        if (response.status === 502) {
+            throw new Error(`Failed to fetch (502)`);
+        }
+        
+        // 400 = bad request to proxy
+        if (response.status === 400) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Bad request');
         }
         
         const contentType = response.headers.get('content-type') || '';
@@ -1655,29 +1654,29 @@ async function fetchViaProxy(url) {
             const json = await response.json();
             // If it's an image response from our proxy
             if (json.base64) {
-                return { ok: true, base64: json.base64, contentType: json.contentType };
+                // Return the base64 data for image handling
+                return json.base64;
             }
-            // If it's an error
+            // If it's an error from the proxy
             if (json.error) {
                 throw new Error(json.error);
             }
-            return { ok: true, text: JSON.stringify(json) };
+            // Otherwise return JSON as string
+            return JSON.stringify(json);
         }
         
-        // Text/HTML response - proxy returns 200 even if target was 404
-        // We get the content and let the calling function decide if it's useful
+        // Text/HTML response - return the text directly
+        // This maintains compatibility with existing search functions
         const text = await response.text();
-        
-        // Check original status from header (for debugging)
-        const originalStatus = response.headers.get('X-Original-Status');
-        
-        return { ok: true, text, originalStatus };
+        return text;
         
     } catch (error) {
         console.warn(`Proxy failed for ${url}:`, error.message);
-        return { ok: false, error: error.message };
+        // Return empty string on failure (search functions check length)
+        return '';
     }
 }
+
 
         // Strip HTML tags
         function stripHtml(html) {
