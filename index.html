@@ -1237,7 +1237,7 @@
             <img src="logo.png" alt="LitLyric Logo" class="header-logo">
             <h1>The LitLyric Narrator Project</h1>
             <p class="subtitle">Search multiple sources for audiobook narrator profiles</p>
-            <span class="version-badge">v2.0.4</span>
+            <span class="version-badge">v2.0.5</span>
         </header>
 
         <div class="search-container">
@@ -1586,61 +1586,31 @@
         }
 
         // Helper function to fetch an image URL and convert to base64
-        // Uses an img element and canvas to handle CORS and ensure proper image data
-        function fetchImageAsBase64(url) {
+        async function fetchImageAsBase64(imageUrl) {
+    // First try direct fetch (works for CORS-enabled sources)
+    try {
+        const response = await fetch(imageUrl);
+        if (response.ok) {
+            const blob = await response.blob();
             return new Promise((resolve, reject) => {
-                const img = new Image();
-                img.crossOrigin = 'anonymous';
-                
-                img.onload = function() {
-                    try {
-                        const canvas = document.createElement('canvas');
-                        canvas.width = img.naturalWidth;
-                        canvas.height = img.naturalHeight;
-                        
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0);
-                        
-                        // Convert to JPEG base64
-                        const base64 = canvas.toDataURL('image/jpeg', 0.9);
-                        resolve(base64);
-                    } catch (e) {
-                        reject(e);
-                    }
-                };
-                
-                img.onerror = function() {
-                    // If direct load fails (CORS), try via proxy
-                    const proxyImg = new Image();
-                    proxyImg.crossOrigin = 'anonymous';
-                    
-                    proxyImg.onload = function() {
-                        try {
-                            const canvas = document.createElement('canvas');
-                            canvas.width = proxyImg.naturalWidth;
-                            canvas.height = proxyImg.naturalHeight;
-                            
-                            const ctx = canvas.getContext('2d');
-                            ctx.drawImage(proxyImg, 0, 0);
-                            
-                            const base64 = canvas.toDataURL('image/jpeg', 0.9);
-                            resolve(base64);
-                        } catch (e) {
-                            reject(e);
-                        }
-                    };
-                    
-                    proxyImg.onerror = function() {
-                        reject(new Error('Failed to load image'));
-                    };
-                    
-                    // Try a CORS proxy
-                    proxyImg.src = `https://corsproxy.io/?${encodeURIComponent(url)}`;
-                };
-                
-                img.src = url;
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
             });
         }
+    } catch (e) {
+        // Direct fetch failed, try proxy
+    }
+    
+    // Use our proxy
+    const result = await fetchViaProxy(imageUrl);
+    if (result.ok && result.base64) {
+        return result.base64;
+    }
+    
+    throw new Error('Failed to fetch image');
+}
 
         function log(message, type = 'info') {
             const entry = document.createElement('div');
@@ -1658,29 +1628,41 @@
         }
 
         async function fetchViaProxy(url) {
-            // Try multiple CORS proxies in case one fails
-            const corsProxies = [
-                (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
-                (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-                (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
-                (u) => `https://thingproxy.freeboard.io/fetch/${u}`,
-                (u) => `https://cors-anywhere.herokuapp.com/${u}`
-            ];
-            
-            for (const proxyFn of corsProxies) {
-                try {
-                    const proxyUrl = proxyFn(url);
-                    const response = await fetch(proxyUrl);
-                    if (response.ok) {
-                        return await response.text();
-                    }
-                } catch (e) {
-                    // Try next proxy
-                    continue;
-                }
-            }
-            throw new Error('All CORS proxies failed');
+    // Use YOUR OWN Netlify proxy - no more flaky public proxies!
+    const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
+    
+    try {
+        const response = await fetch(proxyUrl);
+        
+        if (!response.ok) {
+            throw new Error(`Proxy returned ${response.status}`);
         }
+        
+        const contentType = response.headers.get('content-type') || '';
+        
+        // Check if it's a JSON response (for images)
+        if (contentType.includes('application/json')) {
+            const json = await response.json();
+            // If it's an image response from our proxy
+            if (json.base64) {
+                return { ok: true, base64: json.base64, contentType: json.contentType };
+            }
+            // If it's an error
+            if (json.error) {
+                throw new Error(json.error);
+            }
+            return { ok: true, text: JSON.stringify(json) };
+        }
+        
+        // Text/HTML response
+        const text = await response.text();
+        return { ok: true, text };
+        
+    } catch (error) {
+        console.warn(`Proxy failed for ${url}:`, error.message);
+        return { ok: false, error: error.message };
+    }
+}
 
         // Strip HTML tags
         function stripHtml(html) {
