@@ -6,6 +6,13 @@
   node_bundler = "esbuild"
 
 [[redirects]]
- from = "/api/*"
+  from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
+
+# Optional: Set headers for the site
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
