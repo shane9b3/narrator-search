@@ -1269,7 +1269,7 @@
         <p class="subtitle">
           Search multiple sources for audiobook narrator profiles
         </p>
-        <span class="version-badge">v2.0.9</span>
+        <span class="version-badge">v2.1.1</span>
       </header>
 
       <div class="search-container">
@@ -1723,15 +1723,7 @@
             const imagePath = decodeURIComponent(pathMatch[1]);
 
             // Construct CDN URL
-            return `$ {
-                    CLOUDFLARE_WORKER_URL
-                }
-    
-                /$ {
-                    imagePath
-                }
-    
-                `;
+            return `${CLOUDFLARE_WORKER_URL}/${imagePath}`;
           }
         } catch (e) {
           console.warn("Failed to parse Firebase URL:", e);
@@ -5192,14 +5184,7 @@
                 }
               }
 
-              log(
-                `Image uploaded to Storage: $ {
-                                                        storedImageUrl
-                                                    }
-                        
-                                                    `,
-                "success"
-              );
+              log(`Image uploaded to Storage: ${storedImageUrl}`, "success");
             } catch (storageError) {
               console.error("Storage upload error:", storageError);
               showFirebaseStatus(
@@ -5224,24 +5209,8 @@
             storedImageUrl.includes("firebasestorage.googleapis.com")
           ) {
             // Store CDN URL instead of Firebase URL
-            finalImageUrl = `$ {
-                                                        CLOUDFLARE_WORKER_URL
-                                                    }
-                        
-                                                    /narrator-images/$ {
-                                                        docId
-                                                    }
-                        
-                                                    .jpg`;
-
-            log(
-              `Using CDN URL: $ {
-                                                            finalImageUrl
-                                                        }
-                        
-                                                        `,
-              "success"
-            );
+            finalImageUrl = `${CLOUDFLARE_WORKER_URL}/narrator-images/${docId}.jpg`;
+            log(`Using CDN URL: ${finalImageUrl}`, "success");
           }
 
           // Simple narrator data
